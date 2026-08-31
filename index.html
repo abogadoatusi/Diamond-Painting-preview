@@ -2,14 +2,27 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ダイヤモンドアート図案メーカー（ハガキサイズ対応）</title>
+<meta name="description" content="写真からハガキサイズ（100×148mm）の実寸ダイヤモンドアート図案を作り、そのまま印刷できるPDFを書き出す無料ツール。DMC相当のカラーコードを手入力・変更できます。">
+<meta name="theme-color" content="#2f6fed">
+<meta name="color-scheme" content="light">
+<meta property="og:type" content="website">
+<meta property="og:title" content="ダイヤモンドアート図案メーカー">
+<meta property="og:description" content="写真からハガキサイズの実寸ダイヤモンドアート図案を作り、印刷用PDFを書き出せます。カラーコードも自由に変更可能。">
+<meta property="og:image" content="icons/icon-512.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="図案メーカー">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
 <header class="topbar">
-  <h1>ダイヤモンドアート図案メーカー</h1>
+  <h1><span class="t-full">ダイヤモンドアート図案メーカー</span><span class="t-short">図案メーカー</span></h1>
   <div class="topbar-info" id="dimInfo">画像を読み込んでください</div>
   <div class="topbar-actions">
     <button id="btnSave" class="ghost" type="button">保存</button>
@@ -19,10 +32,16 @@
   </div>
 </header>
 
+<nav class="tabbar" id="tabbar">
+  <button type="button" data-p="controls" class="on">① 設定</button>
+  <button type="button" data-p="preview">② プレビュー</button>
+  <button type="button" data-p="palette">③ 色</button>
+</nav>
+
 <main class="layout">
 
   <!-- ============ 左：設定 ============ -->
-  <section class="panel controls">
+  <section class="panel controls active" data-panel="controls">
 
     <details open>
       <summary>1. 画像</summary>
@@ -123,7 +142,7 @@
   </section>
 
   <!-- ============ 中：プレビュー ============ -->
-  <section class="panel preview">
+  <section class="panel preview" data-panel="preview">
     <div class="toolbar">
       <div class="seg" id="viewMode">
         <button type="button" data-v="color" class="on">カラー</button>
@@ -132,10 +151,12 @@
       </div>
       <label class="check inline"><input type="checkbox" id="showGrid" checked> グリッド</label>
       <label class="row inline">表示倍率 <input type="range" id="viewZoom" min="3" max="28" value="10"></label>
+      <button type="button" class="ghost" id="btnFit">全体表示</button>
       <div class="seg" id="tool">
         <button type="button" data-t="paint" class="on">塗る</button>
         <button type="button" data-t="pick">スポイト</button>
       </div>
+      <label class="check inline touch-only"><input type="checkbox" id="touchPaint"> 指でなぞって塗る</label>
       <button type="button" class="ghost" id="btnUndo">元に戻す</button>
     </div>
     <div class="canvas-wrap" id="canvasWrap">
@@ -146,7 +167,7 @@
   </section>
 
   <!-- ============ 右：パレット ============ -->
-  <section class="panel palette">
+  <section class="panel palette" data-panel="palette">
     <div class="palette-head">
       <strong>カラーパレット</strong>
       <div>
@@ -186,6 +207,14 @@
 
 <input type="file" id="projFile" accept="application/json,.json" hidden>
 
+<script>
+/* オフラインでも使えるようにする（http(s) のときだけ） */
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () { /* 失敗しても通常動作 */ });
+  });
+}
+</script>
 <script src="js/dmc.js"></script>
 <script src="js/color.js"></script>
 <script src="js/quantize.js"></script>

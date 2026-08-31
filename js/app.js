@@ -11,7 +11,7 @@
     img: null, srcUrl: null,
     cols: 0, rows: 0, bead: 2.5,
     idx: null, palette: [], counts: [],
-    sel: 0, edited: false, undo: [], cellPx: 10,
+    sel: 0, edited: false, undo: [], cellPx: 10, everGenerated: false,
     editingIndex: -1
   };
 
@@ -137,6 +137,9 @@
     updateCalc();
     status('図案を作成しました（' + S.palette.length + '色 / ' + comma(idx.length) + '粒）');
     autosave();
+    if (!S.everGenerated && isNarrow()) showPanel('preview');
+    if (!S.everGenerated || S.cols * S.cellPx > $('canvasWrap').clientWidth) fitZoom(true);
+    S.everGenerated = true;
   }
 
   function assignSymbols() {
@@ -181,6 +184,19 @@
     });
   }
 
+  /* 図案全体が画面に収まる表示倍率にする */
+  function fitZoom(silent) {
+    if (!S.cols) return;
+    var wrap = $('canvasWrap');
+    var w = wrap.clientWidth - 34, h = wrap.clientHeight - 34;
+    if (w < 40 || h < 40) return;
+    var c = Math.floor(Math.min(w / S.cols, h / S.rows));
+    c = Math.max(3, Math.min(28, c));
+    $('viewZoom').value = c;
+    draw();
+    if (!silent) status('全体が見える倍率にしました（1マス ' + c + 'px）');
+  }
+
   function canvasCell(ev) {
     var cv = $('canvas'), r = cv.getBoundingClientRect();
     var cell = S.cellPx || +$('viewZoom').value;
@@ -190,23 +206,45 @@
     return { x: x, y: y, i: y * S.cols + x };
   }
 
-  var painting = false;
+  var painting = false, lastPointerType = 'mouse';
+
+  function pickAt(c) {
+    setSelected(S.idx[c.i]);
+    var row = $('paletteList').children[S.sel];
+    if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+    status('スポイト: ' + S.palette[S.sel].code + ' を選択しました');
+  }
+
   function onCanvasDown(ev) {
+    lastPointerType = ev.pointerType || 'mouse';
     if (!S.idx) return;
     var c = canvasCell(ev); if (!c) return;
-    if (tool() === 'pick' || ev.altKey) {
-      S.sel = S.idx[c.i];
-      renderPalette();
-      status('スポイト: ' + S.palette[S.sel].code + ' を選択しました');
-      return;
-    }
+    /* 指のときは既定でスクロールを優先。塗るのは click（＝スクロールでないタップ）で行う */
+    if (ev.pointerType === 'touch' && !$('touchPaint').checked) return;
+    if (tool() === 'pick' || ev.altKey) { pickAt(c); return; }
     pushUndo();
     painting = true;
+    try { $('canvas').setPointerCapture(ev.pointerId); } catch (e) { /* 無視 */ }
     paint(c);
     ev.preventDefault();
   }
+
+  function onCanvasUp() {
+    if (painting) { painting = false; recount(); renderPalette(); autosave(); }
+  }
+
+  /* スクロールにならなかったタップだけが click として届く */
+  function onCanvasClick(ev) {
+    if (!S.idx) return;
+    if (lastPointerType !== 'touch' || $('touchPaint').checked) return;
+    var c = canvasCell(ev); if (!c) return;
+    if (tool() === 'pick') { pickAt(c); return; }
+    pushUndo(); paint(c); autosave();
+  }
+
   function onCanvasMove(ev) {
     if (!S.idx) return;
+    if (ev.pointerType === 'touch' && !painting) return;
     var c = canvasCell(ev);
     if (c) {
       var p = S.palette[S.idx[c.i]];
@@ -230,6 +268,12 @@
 
   /* ================= パレット UI ================= */
 
+  function setSelected(i) {
+    S.sel = i;
+    var rows = $('paletteList').children;
+    for (var k = 0; k < rows.length; k++) rows[k].classList.toggle('sel', k === i);
+  }
+
   function renderPalette() {
     var list = $('paletteList');
     list.innerHTML = '';
@@ -251,7 +295,6 @@
       meta.className = 'pmeta';
       var code = document.createElement('input');
       code.className = 'pcode'; code.value = p.code; code.title = 'カラーコードを直接入力できます';
-      code.addEventListener('click', function (e) { e.stopPropagation(); });
       code.addEventListener('change', function () {
         p.code = code.value.trim() || p.code;
         var hit = findDmc(p.code);
@@ -277,7 +320,7 @@
       right.style.gap = '4px';
 
       row.appendChild(sw); row.appendChild(sym); row.appendChild(meta); row.appendChild(right);
-      row.addEventListener('click', function () { S.sel = i; renderPalette(); });
+      row.addEventListener('click', function () { setSelected(i); });
       list.appendChild(row);
     });
   }
@@ -759,6 +802,19 @@
 
   function status(msg) { $('status').textContent = msg; }
 
+  function isNarrow() { return window.matchMedia('(max-width:1180px)').matches; }
+
+  function showPanel(name) {
+    document.querySelectorAll('.layout > .panel').forEach(function (p) {
+      p.classList.toggle('active', p.dataset.panel === name);
+    });
+    $('tabbar').querySelectorAll('button').forEach(function (b) {
+      b.classList.toggle('on', b.dataset.p === name);
+    });
+    if (name === 'preview') draw();
+    window.scrollTo(0, 0);
+  }
+
   function syncOutputs() {
     $('zoomOut').textContent = ((+$('zoom').value) / 100).toFixed(2) + '×';
     $('offXOut').textContent = $('offX').value;
@@ -831,6 +887,7 @@
       e.target.classList.add('on');
     });
     $('showGrid').addEventListener('change', draw);
+    $('btnFit').addEventListener('click', function () { fitZoom(false); });
     $('viewZoom').addEventListener('input', draw);
     $('btnUndo').addEventListener('click', function () {
       if (!S.undo.length) { status('元に戻せる操作がありません'); return; }
@@ -840,12 +897,21 @@
     });
 
     var cv = $('canvas');
-    cv.addEventListener('mousedown', onCanvasDown);
-    window.addEventListener('mousemove', onCanvasMove);
-    window.addEventListener('mouseup', function () {
-      if (painting) { painting = false; recount(); renderPalette(); autosave(); }
-    });
+    cv.addEventListener('pointerdown', onCanvasDown);
+    cv.addEventListener('click', onCanvasClick);
+    window.addEventListener('pointermove', onCanvasMove);
+    window.addEventListener('pointerup', onCanvasUp);
+    window.addEventListener('pointercancel', onCanvasUp);
     cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    $('touchPaint').addEventListener('change', function () {
+      cv.classList.toggle('touch-paint', this.checked);
+      status(this.checked ? '指でなぞって塗るモードです（キャンバス上ではスクロールしません）'
+                          : 'タップで1粒ずつ塗ります。キャンバス上を指で動かすとスクロールします');
+    });
+
+    $('tabbar').addEventListener('click', function (e) {
+      if (e.target.tagName === 'BUTTON') showPanel(e.target.dataset.p);
+    });
 
     $('btnAdd').addEventListener('click', addColor);
     $('btnCsvOut').addEventListener('click', exportCsv);
@@ -893,6 +959,9 @@
     window.addEventListener('beforeunload', autosave);
   }
 
+  if (navigator.maxTouchPoints > 0 || window.matchMedia('(hover:none)').matches) {
+    document.body.classList.add('is-touch');
+  }
   bind();
   syncOutputs();
   updateCalc();

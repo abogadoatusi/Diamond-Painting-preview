@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ダイヤモンドアート図案メーカー（ハガキサイズ対応）</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <h1>ダイヤモンドアート図案メーカー</h1>
+  <div class="topbar-info" id="dimInfo">画像を読み込んでください</div>
+  <div class="topbar-actions">
+    <button id="btnSave" class="ghost" type="button">保存</button>
+    <button id="btnLoad" class="ghost" type="button">読込</button>
+    <button id="btnPng" class="ghost" type="button">PNG</button>
+    <button id="btnPdf" class="primary" type="button">PDFを書き出す</button>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ============ 左：設定 ============ -->
+  <section class="panel controls">
+
+    <details open>
+      <summary>1. 画像</summary>
+      <div class="body">
+        <div id="drop" class="drop">
+          <input type="file" id="file" accept="image/*" hidden>
+          <button type="button" class="primary wide" id="btnPick">画像を選ぶ</button>
+          <p class="hint">ここにドラッグ＆ドロップでもOK</p>
+          <img id="thumb" alt="" hidden>
+        </div>
+        <label class="row">トリミング
+          <select id="fit">
+            <option value="cover">全面（はみ出しをカット）</option>
+            <option value="contain">全体を収める（余白あり）</option>
+          </select>
+        </label>
+        <label class="row">ズーム <input type="range" id="zoom" min="100" max="300" value="100"><output id="zoomOut">1.00×</output></label>
+        <label class="row">左右位置 <input type="range" id="offX" min="-50" max="50" value="0"><output id="offXOut">0</output></label>
+        <label class="row">上下位置 <input type="range" id="offY" min="-50" max="50" value="0"><output id="offYOut">0</output></label>
+        <label class="row">余白の色 <input type="color" id="bg" value="#ffffff"></label>
+      </div>
+    </details>
+
+    <details open>
+      <summary>2. 仕上がりサイズ（mm）</summary>
+      <div class="body">
+        <label class="row">用紙プリセット
+          <select id="preset">
+            <option value="100x148">ハガキ 縦 100 × 148</option>
+            <option value="148x100">ハガキ 横 148 × 100</option>
+            <option value="105x148">A6 縦 105 × 148</option>
+            <option value="148x210">A5 縦 148 × 210</option>
+            <option value="210x297">A4 縦 210 × 297</option>
+            <option value="100x100">正方形 100 × 100</option>
+            <option value="custom">カスタム</option>
+          </select>
+        </label>
+        <div class="grid2">
+          <label>幅 mm <input type="number" id="paperW" value="100" min="20" max="600" step="1"></label>
+          <label>高さ mm <input type="number" id="paperH" value="148" min="20" max="600" step="1"></label>
+        </div>
+        <label class="row">余白 mm <input type="number" id="margin" value="4" min="0" max="40" step="0.5"></label>
+        <label class="row">ビーズ形状
+          <select id="shape">
+            <option value="square">角ビーズ（隙間なし）</option>
+            <option value="round">丸ビーズ（隙間あり）</option>
+          </select>
+        </label>
+        <label class="row">ビーズ間隔 mm
+          <select id="beadPreset">
+            <option value="2.5">2.5（角ビーズ標準）</option>
+            <option value="2.8">2.8（丸ビーズ標準）</option>
+            <option value="2.6">2.6</option>
+            <option value="3">3.0（大きめ・初心者向き）</option>
+            <option value="custom">カスタム</option>
+          </select>
+        </label>
+        <label class="row" id="beadCustomRow" hidden>間隔 mm <input type="number" id="bead" value="2.5" min="1" max="10" step="0.1"></label>
+        <p class="calc" id="calcInfo"></p>
+      </div>
+    </details>
+
+    <details open>
+      <summary>3. 色と画質</summary>
+      <div class="body">
+        <label class="row">色数 <input type="number" id="colors" value="20" min="2" max="60" step="1"></label>
+        <label class="row">使う色
+          <select id="stock">
+            <option value="dmc">DMC相当プリセット全色から選ぶ</option>
+            <option value="lock">今のパレットに固定して再変換</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" id="dither"> 誤差拡散（写真向き・粒々になります）</label>
+        <label class="check"><input type="checkbox" id="despeckle" checked> 孤立した1粒を消す（貼りやすくする）</label>
+        <label class="row">明るさ <input type="range" id="brightness" min="-60" max="60" value="0"><output id="brightnessOut">0</output></label>
+        <label class="row">コントラスト <input type="range" id="contrast" min="-60" max="60" value="0"><output id="contrastOut">0</output></label>
+        <label class="row">彩度 <input type="range" id="saturation" min="0" max="200" value="110"><output id="saturationOut">110</output></label>
+        <label class="row">ガンマ <input type="range" id="gamma" min="50" max="160" value="100"><output id="gammaOut">100</output></label>
+        <button type="button" class="primary wide" id="btnGenerate">図案を作る / 作り直す</button>
+      </div>
+    </details>
+
+    <details open>
+      <summary>4. PDF出力の設定</summary>
+      <div class="body">
+        <label class="row">作品名 <input type="text" id="title" placeholder="無題のダイヤモンドアート"></label>
+        <label class="check"><input type="checkbox" id="pdfActual" checked> 実寸チャート（用紙サイズちょうど・下地用）</label>
+        <label class="check"><input type="checkbox" id="pdfActualFill" checked> 　└ セルを薄い色で塗る</label>
+        <label class="check"><input type="checkbox" id="pdfActualSym" checked> 　└ 記号を印刷する</label>
+        <label class="check"><input type="checkbox" id="pdfBig" checked> 拡大チャート（A4・見ながら貼る用）</label>
+        <label class="row">　└ 1マス mm <input type="number" id="bigCell" value="6" min="3" max="12" step="0.5"></label>
+        <label class="check"><input type="checkbox" id="pdfLegend" checked> 色一覧（DMC番号・粒数・必要袋数）</label>
+        <label class="row">1袋の粒数 <input type="number" id="perBag" value="200" min="10" max="2000" step="10"></label>
+        <p class="hint">実寸チャートはフチなし印刷（等倍・100%）で出力してください。</p>
+      </div>
+    </details>
+
+  </section>
+
+  <!-- ============ 中：プレビュー ============ -->
+  <section class="panel preview">
+    <div class="toolbar">
+      <div class="seg" id="viewMode">
+        <button type="button" data-v="color" class="on">カラー</button>
+        <button type="button" data-v="both">カラー+記号</button>
+        <button type="button" data-v="symbol">記号のみ</button>
+      </div>
+      <label class="check inline"><input type="checkbox" id="showGrid" checked> グリッド</label>
+      <label class="row inline">表示倍率 <input type="range" id="viewZoom" min="3" max="28" value="10"></label>
+      <div class="seg" id="tool">
+        <button type="button" data-t="paint" class="on">塗る</button>
+        <button type="button" data-t="pick">スポイト</button>
+      </div>
+      <button type="button" class="ghost" id="btnUndo">元に戻す</button>
+    </div>
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas id="canvas"></canvas>
+      <p class="placeholder" id="placeholder">画像を選んで「図案を作る」を押してください</p>
+    </div>
+    <div class="statusbar" id="status"></div>
+  </section>
+
+  <!-- ============ 右：パレット ============ -->
+  <section class="panel palette">
+    <div class="palette-head">
+      <strong>カラーパレット</strong>
+      <div>
+        <button type="button" class="ghost sm" id="btnAdd">色を追加</button>
+        <button type="button" class="ghost sm" id="btnCsvIn">CSV読込</button>
+        <button type="button" class="ghost sm" id="btnCsvOut">CSV出力</button>
+        <input type="file" id="csvFile" accept=".csv,text/csv" hidden>
+      </div>
+    </div>
+    <p class="hint pad">行をクリックで選択（プレビューを塗る色になります）。番号や色は直接書き換えられます。</p>
+    <div class="palette-list" id="paletteList"></div>
+  </section>
+
+</main>
+
+<!-- 色を選ぶダイアログ -->
+<div class="modal" id="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <strong id="modalTitle">色を選ぶ</strong>
+      <button type="button" class="ghost sm" id="modalClose">閉じる</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid2">
+        <label>カラーコード <input type="text" id="mCode" placeholder="例: 310 / DMC 310 / 自社1番"></label>
+        <label>色 <input type="color" id="mHex" value="#000000"></label>
+      </div>
+      <label class="row">HEX <input type="text" id="mHexText" placeholder="#RRGGBB"></label>
+      <label class="row">プリセット検索 <input type="text" id="mSearch" placeholder="番号や色名（例: 310, Rose）"></label>
+      <div class="dmc-list" id="dmcList"></div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="primary" id="mApply">この色にする</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="projFile" accept="application/json,.json" hidden>
+
+<script src="js/dmc.js"></script>
+<script src="js/color.js"></script>
+<script src="js/quantize.js"></script>
+<script src="js/render.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

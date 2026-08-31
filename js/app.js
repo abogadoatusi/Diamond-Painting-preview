@@ -431,7 +431,7 @@
       lines.push([p.code, p.hex, '"' + (p.name || '').replace(/"/g, '""') + '"',
                   p.symbol, S.counts[i] || 0].join(','));
     });
-    downloadBlob(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv' }),
+    saveFile(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv' }),
       fileBase() + '_palette.csv');
   }
 
@@ -468,12 +468,36 @@
     return t.replace(/[\\/:*?"<>|]/g, '_').slice(0, 40) || 'diamond-art';
   }
 
-  function downloadBlob(blob, name) {
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url; a.download = name;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  /* 保存処理。claude.ai の Artifact として開かれているときは
+     downloads capability を、それ以外は通常のダウンロードを使う。 */
+  var downloadsCap = null;
+  function saver() {
+    if (!downloadsCap) {
+      downloadsCap = (window.claude && typeof window.claude.use === 'function')
+        ? window.claude.use('downloads').catch(function () { return null; })
+        : Promise.resolve(null);
+    }
+    return downloadsCap;
+  }
+
+  function saveFile(blob, name) {
+    return saver().then(function (dl) {
+      if (dl) {
+        return dl.save({ filename: name, data: blob }).then(function () {
+          status(name + ' を保存しました');
+        }, function (err) {
+          var code = err && err.code;
+          status(code === 'declined' ? '保存をキャンセルしました'
+               : code === 'too_large' ? 'ファイルが大きすぎて保存できません'
+               : '保存できませんでした（' + (code || 'error') + '）');
+        });
+      }
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    });
   }
 
   function exportPng() {
@@ -483,7 +507,7 @@
       cell: 14, mode: viewMode(), shape: $('shape').value,
       showGrid: $('showGrid').checked, gridEvery: 10
     });
-    cv.toBlob(function (b) { downloadBlob(b, fileBase() + '.png'); }, 'image/png');
+    cv.toBlob(function (b) { saveFile(b, fileBase() + '.png'); }, 'image/png');
   }
 
   /* 日本語などを含む文字列を画像化して PDF に貼るためのヘルパー */
@@ -719,7 +743,7 @@
         LM, LH - LM + 4, 6.6, { color: '#9AA3AC' });
     }
 
-    doc.save(fileBase() + '.pdf');
+    saveFile(doc.build(), fileBase() + '.pdf');
   }
 
   /* ================= 保存・復元 ================= */
@@ -762,7 +786,7 @@
   }
 
   function saveProject() {
-    downloadBlob(new Blob([JSON.stringify(projectData(true))], { type: 'application/json' }),
+    saveFile(new Blob([JSON.stringify(projectData(true))], { type: 'application/json' }),
       fileBase() + '.json');
     status('プロジェクトを保存しました');
   }

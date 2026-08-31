@@ -6,6 +6,7 @@
 ## 👉 ウェブで使う
 
 **https://abogadoatusi.github.io/Diamond-Painting-preview/**
+（このURLで公開するには、下の「公開の設定」を1回だけ行ってください）
 
 インストール不要。PC・スマホ・タブレットのブラウザで開くだけで使えます。
 画像はすべて端末の中だけで処理され、**どこにもアップロードされません**（サーバーに送信する処理は一切ありません）。
@@ -126,6 +127,7 @@ myA-01,#FF88AA,自社ピンク
 ```
 index.html      画面
 styles.css      スタイル
+build.js        1枚のHTMLにまとめるスクリプト（-> dist/index.html）
 manifest.webmanifest  ホーム画面に追加するための情報（PWA）
 sw.js           オフライン用サービスワーカー
 icons/          アプリアイコン
@@ -140,12 +142,33 @@ js/app.js       アプリ本体
 
 外部ライブラリ・外部への通信は一切ありません。読み込むのは自分自身のファイルだけです。
 
+## 公開の設定（最初の1回だけ）
+
+GitHub の仕様上、**Pages の有効化だけは手動**です
+（ワークフローの権限では作成できません）。
+
+1. リポジトリの **Settings** → 左メニュー **Pages** を開く
+2. **Build and deployment** の **Source** を **GitHub Actions** に変更
+3. **Actions** タブ → 「Deploy to GitHub Pages」→ **Run workflow** で実行
+
+以降はデフォルトブランチへ push するたびに自動でデプロイされます。
+
 ## 公開の仕組み
 
 `.github/workflows/pages.yml` により、デフォルトブランチへ push すると
 GitHub Actions が GitHub Pages へ自動デプロイします（ビルド工程はなく、リポジトリの中身をそのまま配信）。
 ワークフローの `on.push.branches` にはデフォルトブランチ名を書いています。
 ブランチ名を変えたときはここも合わせて変更してください。
+
+## 1枚のHTMLにまとめる
+
+`node build.js` を実行すると、CSS と JS を埋め込んだ `dist/index.html`（約98KB）が生成されます。
+メール添付やチャットで丸ごと渡したいとき、claude.ai の Artifact として公開したいときに使います。
+`js/` や `styles.css` を編集したら作り直してください。
+
+Artifact として開かれている場合、PDF などの保存は claude.ai の
+`downloads` 機能を経由します（保存前に確認ダイアログが出ます）。
+通常のブラウザではそのままダウンロードされます。
 
 更新はサービスワーカーが裏で取得し、**次に開いたときに反映**されます
 （すぐに反映したい場合はページを2回読み込んでください）。

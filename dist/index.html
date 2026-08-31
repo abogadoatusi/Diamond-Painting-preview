@@ -1,0 +1,2304 @@
+<title>ダイヤモンドアート図案メーカー</title>
+<style>
+/* ビーズの色を正しく見比べられるよう、UI は明るい面に固定する。
+   ネイティブ部品（チェックボックス・スライダー・色ピッカー）も明るい側に揃える。 */
+:root{
+  color-scheme:light;
+  --bg:#f5f6f8; --panel:#ffffff; --line:#dfe3e8; --ink:#1d2329; --muted:#6b7580;
+  --accent:#2f6fed; --accent-ink:#ffffff; --shadow:0 1px 2px rgba(20,30,45,.08),0 6px 18px rgba(20,30,45,.06);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font:14px/1.6 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Yu Gothic UI",sans-serif;
+}
+h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.02em;white-space:nowrap}
+
+/* ---- top bar ---- */
+.topbar{
+  display:flex;align-items:center;gap:16px;padding:10px 16px;background:var(--panel);
+  border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;
+}
+.topbar-info{flex:1;color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.topbar-actions{display:flex;gap:8px}
+
+/* ---- layout ---- */
+.layout{
+  display:grid;grid-template-columns:320px minmax(0,1fr) 300px;gap:12px;
+  padding:12px;align-items:start;height:calc(100vh - 53px);
+}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.controls,.palette{height:100%;overflow-y:auto}
+.preview{height:100%;display:flex;flex-direction:column;min-width:0}
+@media (max-width:1180px){
+  .layout{grid-template-columns:1fr;height:auto}
+  .controls,.palette,.preview{height:auto}
+  .canvas-wrap{min-height:52vh}
+}
+
+/* ---- controls ---- */
+details{border-bottom:1px solid var(--line)}
+details:last-child{border-bottom:0}
+summary{padding:11px 14px;font-weight:700;cursor:pointer;user-select:none;font-size:13.5px;background:#fafbfc}
+summary::marker{color:var(--muted)}
+.body{padding:8px 14px 16px;display:flex;flex-direction:column;gap:9px}
+label{font-size:12.5px;color:#39424c}
+.row{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.row>select,.row>input[type=number],.row>input[type=text]{flex:1;min-width:0}
+.row>input[type=range]{flex:1;min-width:60px}
+.row>output{width:44px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid2 label{display:flex;flex-direction:column;gap:3px}
+.check{display:flex;align-items:center;gap:7px;cursor:pointer}
+.inline{white-space:nowrap}
+input[type=text],input[type=number],select{
+  padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);font:inherit;font-size:13px;
+}
+input[type=color]{width:38px;height:28px;padding:1px;border:1px solid var(--line);border-radius:6px;background:#fff}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.hint{color:var(--muted);font-size:11.5px;margin:2px 0 0}
+.hint.pad{padding:0 12px}
+.calc{margin:4px 0 0;padding:8px 10px;background:#f0f4fd;border:1px solid #d9e3fb;border-radius:7px;font-size:12px;line-height:1.7;white-space:pre-line;font-variant-numeric:tabular-nums}
+
+/* ---- buttons ---- */
+button{font:inherit;font-size:13px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink);padding:6px 12px;cursor:pointer}
+button:hover{background:#f1f3f6}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+button.primary:hover{filter:brightness(1.07)}
+button.wide{width:100%;padding:9px}
+button.sm{padding:4px 8px;font-size:12px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:5px 10px;font-size:12px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--accent);color:#fff;font-weight:600}
+
+/* ---- drop zone ---- */
+.drop{border:2px dashed var(--line);border-radius:9px;padding:14px;text-align:center;transition:.15s}
+.drop.over{border-color:var(--accent);background:#eef3fe}
+.drop img{max-width:100%;max-height:150px;margin-top:10px;border-radius:6px;display:block;margin-inline:auto}
+
+/* ---- preview ---- */
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--line);background:#fafbfc}
+.canvas-wrap{flex:1;overflow:auto;background:
+  linear-gradient(45deg,#eceef1 25%,transparent 25%,transparent 75%,#eceef1 75%),
+  linear-gradient(45deg,#eceef1 25%,#f7f8fa 25%,#f7f8fa 75%,#eceef1 75%);
+  background-size:16px 16px;background-position:0 0,8px 8px;display:flex;align-items:flex-start;justify-content:center;padding:16px;min-height:300px}
+#canvas{image-rendering:pixelated;box-shadow:0 2px 14px rgba(0,0,0,.18);background:#fff;cursor:crosshair}
+.placeholder{color:var(--muted);align-self:center}
+.statusbar{padding:7px 12px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;background:#fafbfc;min-height:31px;font-variant-numeric:tabular-nums}
+
+/* ---- palette ---- */
+.palette-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:#fafbfc;flex-wrap:wrap}
+.palette-head>div{display:flex;gap:5px}
+.palette-list{padding:8px}
+.prow{display:grid;grid-template-columns:26px 22px 1fr auto;gap:7px;align-items:center;padding:5px 6px;border-radius:7px;border:1px solid transparent;cursor:pointer}
+.prow:hover{background:#f3f5f8}
+.prow.sel{border-color:var(--accent);background:#eef3fe}
+.sw{width:26px;height:26px;border-radius:5px;border:1px solid rgba(0,0,0,.18);cursor:pointer}
+.sym{font:700 13px/1 ui-monospace,Menlo,Consolas,monospace;text-align:center;color:#39424c}
+.pmeta{min-width:0}
+.pcode{width:100%;padding:3px 5px;font-size:12.5px;border:1px solid transparent;background:transparent;border-radius:4px}
+.pcode:hover,.pcode:focus{border-color:var(--line);background:#fff}
+.pname{font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:5px}
+.pcount{font-size:11.5px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pdel{border:0;background:transparent;color:var(--muted);padding:2px 4px;font-size:13px;line-height:1}
+.pdel:hover{color:#c0392b;background:transparent}
+
+/* ---- modal ---- */
+[hidden]{display:none !important}
+.modal{position:fixed;inset:0;background:rgba(16,22,30,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal-card{background:#fff;border-radius:12px;width:min(560px,100%);max-height:86vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal-head,.modal-foot{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+.modal-foot{border-bottom:0;border-top:1px solid var(--line);justify-content:flex-end}
+.modal-body{padding:14px 16px;overflow:auto;display:flex;flex-direction:column;gap:10px}
+.dmc-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:5px;max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:7px}
+.dmc-item{display:flex;align-items:center;gap:6px;padding:4px 5px;border-radius:5px;cursor:pointer;font-size:11.5px;border:1px solid transparent}
+.dmc-item:hover{background:#f1f3f6}
+.dmc-item.on{border-color:var(--accent);background:#eef3fe}
+.dmc-item i{width:16px;height:16px;border-radius:4px;border:1px solid rgba(0,0,0,.18);flex:none}
+.dmc-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ================= タブ（狭い画面用） ================= */
+.tabbar{display:none;gap:6px;padding:8px 12px 0;background:var(--bg);position:sticky;top:53px;z-index:15}
+.tabbar button{flex:1;padding:9px 6px;font-size:13px;font-weight:600;border-radius:9px 9px 0 0;border-bottom:0;color:var(--muted);background:#eceff3}
+.tabbar button.on{background:var(--panel);color:var(--accent);box-shadow:0 -1px 2px rgba(20,30,45,.06)}
+h1 .t-short{display:none}
+
+/* ================= レスポンシブ ================= */
+@media (max-width:1180px){
+  .tabbar{display:flex}
+  .layout{padding-top:0;gap:0}
+  .layout>.panel{display:none;border-radius:0 0 10px 10px}
+  .layout>.panel.active{display:block}
+  .layout>.panel.preview.active{display:flex}
+  .canvas-wrap{min-height:46vh}
+  .toolbar{position:sticky;top:0;z-index:5}
+}
+@media (max-width:760px){
+  .topbar{flex-wrap:wrap;gap:6px 10px;padding:8px 12px}
+  h1{font-size:15px}
+  h1 .t-full{display:none}
+  h1 .t-short{display:inline}
+  .topbar-info{order:3;flex:1 0 100%;font-size:11px;white-space:normal}
+  .topbar-actions{margin-left:auto;gap:6px}
+  .topbar-actions button{padding:7px 10px;font-size:12.5px}
+  .tabbar{top:0;position:static}
+  .body{padding:8px 12px 14px}
+  .palette-head,.palette-list{padding-inline:10px}
+  .canvas-wrap{padding:10px}
+  .toolbar{gap:8px;padding:8px 10px}
+  .toolbar .row.inline{flex:1 0 100%}
+}
+@media (hover:none){
+  .drop .hint{display:none}
+}
+/* 指で塗るモードのときだけ、キャンバス上のスクロールを止める */
+#canvas.touch-paint{touch-action:none}
+.touch-only{display:none}
+body.is-touch .touch-only{display:flex}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition-duration:.01ms !important;animation-duration:.01ms !important}
+}
+
+</style>
+<header class="topbar">
+  <h1><span class="t-full">ダイヤモンドアート図案メーカー</span><span class="t-short">図案メーカー</span></h1>
+  <div class="topbar-info" id="dimInfo">画像を読み込んでください</div>
+  <div class="topbar-actions">
+    <button id="btnSave" class="ghost" type="button">保存</button>
+    <button id="btnLoad" class="ghost" type="button">読込</button>
+    <button id="btnPng" class="ghost" type="button">PNG</button>
+    <button id="btnPdf" class="primary" type="button">PDFを書き出す</button>
+  </div>
+</header>
+
+<nav class="tabbar" id="tabbar">
+  <button type="button" data-p="controls" class="on">① 設定</button>
+  <button type="button" data-p="preview">② プレビュー</button>
+  <button type="button" data-p="palette">③ 色</button>
+</nav>
+
+<main class="layout">
+
+  <!-- ============ 左：設定 ============ -->
+  <section class="panel controls active" data-panel="controls">
+
+    <details open>
+      <summary>1. 画像</summary>
+      <div class="body">
+        <div id="drop" class="drop">
+          <input type="file" id="file" accept="image/*" hidden>
+          <button type="button" class="primary wide" id="btnPick">画像を選ぶ</button>
+          <p class="hint">ここにドラッグ＆ドロップでもOK</p>
+          <img id="thumb" alt="" hidden>
+        </div>
+        <label class="row">トリミング
+          <select id="fit">
+            <option value="cover">全面（はみ出しをカット）</option>
+            <option value="contain">全体を収める（余白あり）</option>
+          </select>
+        </label>
+        <label class="row">ズーム <input type="range" id="zoom" min="100" max="300" value="100"><output id="zoomOut">1.00×</output></label>
+        <label class="row">左右位置 <input type="range" id="offX" min="-50" max="50" value="0"><output id="offXOut">0</output></label>
+        <label class="row">上下位置 <input type="range" id="offY" min="-50" max="50" value="0"><output id="offYOut">0</output></label>
+        <label class="row">余白の色 <input type="color" id="bg" value="#ffffff"></label>
+      </div>
+    </details>
+
+    <details open>
+      <summary>2. 仕上がりサイズ（mm）</summary>
+      <div class="body">
+        <label class="row">用紙プリセット
+          <select id="preset">
+            <option value="100x148">ハガキ 縦 100 × 148</option>
+            <option value="148x100">ハガキ 横 148 × 100</option>
+            <option value="105x148">A6 縦 105 × 148</option>
+            <option value="148x210">A5 縦 148 × 210</option>
+            <option value="210x297">A4 縦 210 × 297</option>
+            <option value="100x100">正方形 100 × 100</option>
+            <option value="custom">カスタム</option>
+          </select>
+        </label>
+        <div class="grid2">
+          <label>幅 mm <input type="number" id="paperW" value="100" min="20" max="600" step="1"></label>
+          <label>高さ mm <input type="number" id="paperH" value="148" min="20" max="600" step="1"></label>
+        </div>
+        <label class="row">余白 mm <input type="number" id="margin" value="4" min="0" max="40" step="0.5"></label>
+        <label class="row">ビーズ形状
+          <select id="shape">
+            <option value="square">角ビーズ（隙間なし）</option>
+            <option value="round">丸ビーズ（隙間あり）</option>
+          </select>
+        </label>
+        <label class="row">ビーズ間隔 mm
+          <select id="beadPreset">
+            <option value="2.5">2.5（角ビーズ標準）</option>
+            <option value="2.8">2.8（丸ビーズ標準）</option>
+            <option value="2.6">2.6</option>
+            <option value="3">3.0（大きめ・初心者向き）</option>
+            <option value="custom">カスタム</option>
+          </select>
+        </label>
+        <label class="row" id="beadCustomRow" hidden>間隔 mm <input type="number" id="bead" value="2.5" min="1" max="10" step="0.1"></label>
+        <p class="calc" id="calcInfo"></p>
+      </div>
+    </details>
+
+    <details open>
+      <summary>3. 色と画質</summary>
+      <div class="body">
+        <label class="row">色数 <input type="number" id="colors" value="20" min="2" max="60" step="1"></label>
+        <label class="row">使う色
+          <select id="stock">
+            <option value="dmc">DMC相当プリセット全色から選ぶ</option>
+            <option value="lock">今のパレットに固定して再変換</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" id="dither"> 誤差拡散（写真向き・粒々になります）</label>
+        <label class="check"><input type="checkbox" id="despeckle" checked> 孤立した1粒を消す（貼りやすくする）</label>
+        <label class="row">明るさ <input type="range" id="brightness" min="-60" max="60" value="0"><output id="brightnessOut">0</output></label>
+        <label class="row">コントラスト <input type="range" id="contrast" min="-60" max="60" value="0"><output id="contrastOut">0</output></label>
+        <label class="row">彩度 <input type="range" id="saturation" min="0" max="200" value="110"><output id="saturationOut">110</output></label>
+        <label class="row">ガンマ <input type="range" id="gamma" min="50" max="160" value="100"><output id="gammaOut">100</output></label>
+        <button type="button" class="primary wide" id="btnGenerate">図案を作る / 作り直す</button>
+      </div>
+    </details>
+
+    <details open>
+      <summary>4. PDF出力の設定</summary>
+      <div class="body">
+        <label class="row">作品名 <input type="text" id="title" placeholder="無題のダイヤモンドアート"></label>
+        <label class="check"><input type="checkbox" id="pdfActual" checked> 実寸チャート（用紙サイズちょうど・下地用）</label>
+        <label class="check"><input type="checkbox" id="pdfActualFill" checked> 　└ セルを薄い色で塗る</label>
+        <label class="check"><input type="checkbox" id="pdfActualSym" checked> 　└ 記号を印刷する</label>
+        <label class="check"><input type="checkbox" id="pdfBig" checked> 拡大チャート（A4・見ながら貼る用）</label>
+        <label class="row">　└ 1マス mm <input type="number" id="bigCell" value="6" min="3" max="12" step="0.5"></label>
+        <label class="check"><input type="checkbox" id="pdfLegend" checked> 色一覧（DMC番号・粒数・必要袋数）</label>
+        <label class="row">1袋の粒数 <input type="number" id="perBag" value="200" min="10" max="2000" step="10"></label>
+        <p class="hint">実寸チャートはフチなし印刷（等倍・100%）で出力してください。</p>
+      </div>
+    </details>
+
+  </section>
+
+  <!-- ============ 中：プレビュー ============ -->
+  <section class="panel preview" data-panel="preview">
+    <div class="toolbar">
+      <div class="seg" id="viewMode">
+        <button type="button" data-v="color" class="on">カラー</button>
+        <button type="button" data-v="both">カラー+記号</button>
+        <button type="button" data-v="symbol">記号のみ</button>
+      </div>
+      <label class="check inline"><input type="checkbox" id="showGrid" checked> グリッド</label>
+      <label class="row inline">表示倍率 <input type="range" id="viewZoom" min="3" max="28" value="10"></label>
+      <button type="button" class="ghost" id="btnFit">全体表示</button>
+      <div class="seg" id="tool">
+        <button type="button" data-t="paint" class="on">塗る</button>
+        <button type="button" data-t="pick">スポイト</button>
+      </div>
+      <label class="check inline touch-only"><input type="checkbox" id="touchPaint"> 指でなぞって塗る</label>
+      <button type="button" class="ghost" id="btnUndo">元に戻す</button>
+    </div>
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas id="canvas"></canvas>
+      <p class="placeholder" id="placeholder">画像を選んで「図案を作る」を押してください</p>
+    </div>
+    <div class="statusbar" id="status"></div>
+  </section>
+
+  <!-- ============ 右：パレット ============ -->
+  <section class="panel palette" data-panel="palette">
+    <div class="palette-head">
+      <strong>カラーパレット</strong>
+      <div>
+        <button type="button" class="ghost sm" id="btnAdd">色を追加</button>
+        <button type="button" class="ghost sm" id="btnCsvIn">CSV読込</button>
+        <button type="button" class="ghost sm" id="btnCsvOut">CSV出力</button>
+        <input type="file" id="csvFile" accept=".csv,text/csv" hidden>
+      </div>
+    </div>
+    <p class="hint pad">行をクリックで選択（プレビューを塗る色になります）。番号や色は直接書き換えられます。</p>
+    <div class="palette-list" id="paletteList"></div>
+  </section>
+
+</main>
+
+<!-- 色を選ぶダイアログ -->
+<div class="modal" id="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <strong id="modalTitle">色を選ぶ</strong>
+      <button type="button" class="ghost sm" id="modalClose">閉じる</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid2">
+        <label>カラーコード <input type="text" id="mCode" placeholder="例: 310 / DMC 310 / 自社1番"></label>
+        <label>色 <input type="color" id="mHex" value="#000000"></label>
+      </div>
+      <label class="row">HEX <input type="text" id="mHexText" placeholder="#RRGGBB"></label>
+      <label class="row">プリセット検索 <input type="text" id="mSearch" placeholder="番号や色名（例: 310, Rose）"></label>
+      <div class="dmc-list" id="dmcList"></div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="primary" id="mApply">この色にする</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="projFile" accept="application/json,.json" hidden>
+<script>
+/* DMC 相当色のプリセットパレット。
+ * hex はメーカー公表値ではなく、一般に流通している DMC→RGB 換算表を基にした「近似値」です。
+ * 実際のビーズの色味は製造ロットや業者で異なるため、アプリ上でいつでも編集・追加できます。 */
+var DMC_COLORS = [
+  {code:'B5200', name:'Snow White',            hex:'#FFFFFF'},
+  {code:'BLANC', name:'White',                 hex:'#FCFCFC'},
+  {code:'3865',  name:'Winter White',          hex:'#F9F7F1'},
+  {code:'ECRU',  name:'Ecru',                  hex:'#F0EAD6'},
+  {code:'822',   name:'Beige Gray LT',         hex:'#E5DFD0'},
+  {code:'644',   name:'Beige Gray MD',         hex:'#DDD7C6'},
+  {code:'642',   name:'Beige Gray DK',         hex:'#A8A08C'},
+  {code:'640',   name:'Beige Gray VDK',        hex:'#8B8371'},
+  {code:'3024',  name:'Brown Gray VLT',        hex:'#DAD7CE'},
+  {code:'3023',  name:'Brown Gray LT',         hex:'#B5AB98'},
+  {code:'3022',  name:'Brown Gray MD',         hex:'#9B9B84'},
+  {code:'3021',  name:'Brown Gray VDK',        hex:'#5A5348'},
+  {code:'453',   name:'Shell Gray LT',         hex:'#D6C9C1'},
+  {code:'452',   name:'Shell Gray MD',         hex:'#C0AEA6'},
+  {code:'451',   name:'Shell Gray DK',         hex:'#A08C86'},
+  {code:'762',   name:'Pearl Gray VLT',        hex:'#ECECEC'},
+  {code:'415',   name:'Pearl Gray',            hex:'#D3D3D8'},
+  {code:'318',   name:'Steel Gray LT',         hex:'#B5B5B5'},
+  {code:'414',   name:'Steel Gray DK',         hex:'#8C8C8C'},
+  {code:'317',   name:'Pewter Gray',           hex:'#6C6C6C'},
+  {code:'413',   name:'Pewter Gray DK',        hex:'#565656'},
+  {code:'3799',  name:'Pewter Gray VDK',       hex:'#292C2F'},
+  {code:'310',   name:'Black',                 hex:'#000000'},
+  {code:'648',   name:'Beaver Gray LT',        hex:'#C8C8BE'},
+  {code:'647',   name:'Beaver Gray MD',        hex:'#B0B0A5'},
+  {code:'646',   name:'Beaver Gray DK',        hex:'#7E7E70'},
+  {code:'645',   name:'Beaver Gray VDK',       hex:'#6A6A5F'},
+  {code:'844',   name:'Beaver Gray ULT DK',    hex:'#4B4B4B'},
+  {code:'535',   name:'Ash Gray VLT',          hex:'#636363'},
+  {code:'3371',  name:'Black Brown',           hex:'#1E1108'},
+  {code:'938',   name:'Coffee Brown ULT DK',   hex:'#372315'},
+  {code:'898',   name:'Coffee Brown VDK',      hex:'#4A2C1B'},
+  {code:'801',   name:'Coffee Brown DK',       hex:'#6B4226'},
+  {code:'433',   name:'Brown MD',              hex:'#7B5230'},
+  {code:'434',   name:'Brown LT',              hex:'#9C6B3F'},
+  {code:'435',   name:'Brown VLT',             hex:'#B5834F'},
+  {code:'436',   name:'Tan',                   hex:'#CD9A63'},
+  {code:'437',   name:'Tan LT',                hex:'#E5C29F'},
+  {code:'738',   name:'Tan VLT',               hex:'#EBC8A4'},
+  {code:'739',   name:'Tan ULT VLT',           hex:'#F8E4C8'},
+  {code:'3866',  name:'Mocha Brown ULT VLT',   hex:'#F7EFE3'},
+  {code:'3033',  name:'Mocha Brown VLT',       hex:'#E3D3C0'},
+  {code:'3782',  name:'Mocha Brown LT',        hex:'#D2BBA4'},
+  {code:'3032',  name:'Mocha Brown MD',        hex:'#B9A18B'},
+  {code:'3790',  name:'Beige Gray ULT DK',     hex:'#836A55'},
+  {code:'3781',  name:'Mocha Brown DK',        hex:'#6B4A38'},
+  {code:'3864',  name:'Mocha Beige LT',        hex:'#CBB29A'},
+  {code:'3863',  name:'Mocha Beige MD',        hex:'#A88A6E'},
+  {code:'3862',  name:'Mocha Beige DK',        hex:'#8A6A50'},
+  {code:'543',   name:'Beige Brown ULT VLT',   hex:'#E9DCCB'},
+  {code:'842',   name:'Beige Brown VLT',       hex:'#D6C2AF'},
+  {code:'841',   name:'Beige Brown LT',        hex:'#BFA18A'},
+  {code:'840',   name:'Beige Brown MD',        hex:'#A18262'},
+  {code:'839',   name:'Beige Brown DK',        hex:'#6B4F3A'},
+  {code:'838',   name:'Beige Brown VDK',       hex:'#4C3527'},
+  {code:'3861',  name:'Cocoa LT',              hex:'#B08D7D'},
+  {code:'3860',  name:'Cocoa',                 hex:'#8C6A5D'},
+  {code:'779',   name:'Cocoa DK',              hex:'#67493F'},
+  {code:'950',   name:'Desert Sand LT',        hex:'#DDBBA5'},
+  {code:'3774',  name:'Desert Sand VLT',       hex:'#E8CFC0'},
+  {code:'3773',  name:'Desert Sand MD',        hex:'#C08E7B'},
+  {code:'3772',  name:'Desert Sand VDK',       hex:'#A0705C'},
+  {code:'632',   name:'Desert Sand ULT VDK',   hex:'#8B5F4D'},
+  {code:'407',   name:'Desert Sand DK',        hex:'#B98F7D'},
+  {code:'300',   name:'Mahogany VDK',          hex:'#7A3E14'},
+  {code:'400',   name:'Mahogany DK',           hex:'#8F4614'},
+  {code:'301',   name:'Mahogany MD',           hex:'#B25F32'},
+  {code:'3776',  name:'Mahogany LT',           hex:'#CB7B45'},
+  {code:'402',   name:'Mahogany VLT',          hex:'#EDAA79'},
+  {code:'975',   name:'Golden Brown DK',       hex:'#8B4720'},
+  {code:'976',   name:'Golden Brown MD',       hex:'#C48347'},
+  {code:'977',   name:'Golden Brown LT',       hex:'#E0A45A'},
+  {code:'3826',  name:'Golden Brown',          hex:'#B36E32'},
+  {code:'3827',  name:'Golden Brown PALE',     hex:'#F0BE8C'},
+  {code:'780',   name:'Topaz ULT VDK',         hex:'#8E5B26'},
+  {code:'781',   name:'Topaz VDK',             hex:'#9C6A26'},
+  {code:'782',   name:'Topaz DK',              hex:'#AE7B31'},
+  {code:'783',   name:'Topaz MD',              hex:'#CB9A3E'},
+  {code:'725',   name:'Topaz',                 hex:'#FFC840'},
+  {code:'726',   name:'Topaz LT',              hex:'#FBD75B'},
+  {code:'727',   name:'Topaz VLT',             hex:'#FFF1AF'},
+  {code:'3078',  name:'Golden Yellow VLT',     hex:'#FBF3C5'},
+  {code:'745',   name:'Yellow PALE LT',        hex:'#FFE9AE'},
+  {code:'744',   name:'Yellow PALE',           hex:'#FFE793'},
+  {code:'743',   name:'Yellow MD',             hex:'#FED875'},
+  {code:'742',   name:'Tangerine LT',          hex:'#FFBF57'},
+  {code:'741',   name:'Tangerine MD',          hex:'#FFA344'},
+  {code:'740',   name:'Tangerine',             hex:'#FF8B00'},
+  {code:'970',   name:'Pumpkin LT',            hex:'#F78B13'},
+  {code:'971',   name:'Pumpkin',               hex:'#F77B00'},
+  {code:'972',   name:'Canary DEEP',           hex:'#FFB515'},
+  {code:'973',   name:'Canary BRIGHT',         hex:'#FFE300'},
+  {code:'444',   name:'Lemon DK',              hex:'#FFD800'},
+  {code:'307',   name:'Lemon',                 hex:'#FDED54'},
+  {code:'445',   name:'Lemon LT',              hex:'#FFFB9D'},
+  {code:'3822',  name:'Straw LT',              hex:'#F2DB9A'},
+  {code:'3821',  name:'Straw',                 hex:'#F7D77C'},
+  {code:'3820',  name:'Straw DK',              hex:'#E0B54A'},
+  {code:'3852',  name:'Straw VDK',             hex:'#D9A22C'},
+  {code:'677',   name:'Old Gold VLT',          hex:'#F5E5C0'},
+  {code:'676',   name:'Old Gold LT',           hex:'#EBCF95'},
+  {code:'729',   name:'Old Gold MD',           hex:'#D3A64A'},
+  {code:'680',   name:'Old Gold DK',           hex:'#B7862A'},
+  {code:'3829',  name:'Old Gold VDK',          hex:'#A67B23'},
+  {code:'3047',  name:'Yellow Beige LT',       hex:'#F0E3C8'},
+  {code:'3046',  name:'Yellow Beige MD',       hex:'#E1CDA6'},
+  {code:'3045',  name:'Yellow Beige DK',       hex:'#C7A97A'},
+  {code:'834',   name:'Golden Olive VLT',      hex:'#DBC489'},
+  {code:'833',   name:'Golden Olive LT',       hex:'#C2A76B'},
+  {code:'832',   name:'Golden Olive',          hex:'#A08549'},
+  {code:'831',   name:'Golden Olive MD',       hex:'#7D6B41'},
+  {code:'830',   name:'Golden Olive DK',       hex:'#6E5D3A'},
+  {code:'3013',  name:'Khaki Green LT',        hex:'#B4B689'},
+  {code:'3012',  name:'Khaki Green MD',        hex:'#969A66'},
+  {code:'3011',  name:'Khaki Green DK',        hex:'#787A4E'},
+  {code:'524',   name:'Fern Green VLT',        hex:'#C7CDAF'},
+  {code:'523',   name:'Fern Green LT',         hex:'#B0B394'},
+  {code:'522',   name:'Fern Green',            hex:'#969E86'},
+  {code:'3053',  name:'Green Gray',            hex:'#9CAA84'},
+  {code:'3052',  name:'Green Gray MD',         hex:'#8E9C6E'},
+  {code:'3051',  name:'Green Gray DK',         hex:'#5B6340'},
+  {code:'472',   name:'Avocado Green ULT LT',  hex:'#D7E19A'},
+  {code:'471',   name:'Avocado Green VLT',     hex:'#AEC26D'},
+  {code:'470',   name:'Avocado Green LT',      hex:'#94AF48'},
+  {code:'469',   name:'Avocado Green',         hex:'#72843C'},
+  {code:'937',   name:'Avocado Green MD',      hex:'#4E6B24'},
+  {code:'936',   name:'Avocado Green VDK',     hex:'#40551E'},
+  {code:'935',   name:'Avocado Green DK',      hex:'#354A1B'},
+  {code:'934',   name:'Avocado Green BLACK',   hex:'#292E1B'},
+  {code:'907',   name:'Parrot Green LT',       hex:'#C0DE72'},
+  {code:'906',   name:'Parrot Green MD',       hex:'#7FBF3F'},
+  {code:'905',   name:'Parrot Green DK',       hex:'#628A2F'},
+  {code:'904',   name:'Parrot Green VDK',      hex:'#557A28'},
+  {code:'704',   name:'Chartreuse BRIGHT',     hex:'#9BD34F'},
+  {code:'703',   name:'Chartreuse',            hex:'#7BC24E'},
+  {code:'702',   name:'Kelly Green',           hex:'#47A44B'},
+  {code:'701',   name:'Green LT',              hex:'#1F8A43'},
+  {code:'700',   name:'Green BRIGHT',          hex:'#087830'},
+  {code:'699',   name:'Green',                 hex:'#056517'},
+  {code:'955',   name:'Nile Green LT',         hex:'#B6E7C4'},
+  {code:'954',   name:'Nile Green',            hex:'#8DDBA6'},
+  {code:'913',   name:'Nile Green MD',         hex:'#6FC79A'},
+  {code:'912',   name:'Emerald Green LT',      hex:'#48B383'},
+  {code:'911',   name:'Emerald Green MD',      hex:'#1E9C63'},
+  {code:'910',   name:'Emerald Green DK',      hex:'#1A8455'},
+  {code:'909',   name:'Emerald Green VDK',     hex:'#15784E'},
+  {code:'3818',  name:'Emerald Green ULT VDK', hex:'#115A3A'},
+  {code:'564',   name:'Jade VLT',              hex:'#C3E3D0'},
+  {code:'563',   name:'Jade LT',               hex:'#9BCFB0'},
+  {code:'562',   name:'Jade MD',               hex:'#53A278'},
+  {code:'561',   name:'Jade VDK',              hex:'#2C6A4E'},
+  {code:'369',   name:'Pistachio Green VLT',   hex:'#D7E8D4'},
+  {code:'368',   name:'Pistachio Green LT',    hex:'#A6C9A8'},
+  {code:'320',   name:'Pistachio Green MD',    hex:'#69946F'},
+  {code:'367',   name:'Pistachio Green DK',    hex:'#557C5B'},
+  {code:'319',   name:'Pistachio Green VDK',   hex:'#2C5A3A'},
+  {code:'890',   name:'Pistachio Green ULT DK',hex:'#174028'},
+  {code:'3348',  name:'Yellow Green LT',       hex:'#C4D6A5'},
+  {code:'3347',  name:'Yellow Green MD',       hex:'#6F9354'},
+  {code:'3346',  name:'Hunter Green',          hex:'#547A3F'},
+  {code:'3345',  name:'Hunter Green DK',       hex:'#3A5B32'},
+  {code:'989',   name:'Forest Green',          hex:'#7FA05C'},
+  {code:'988',   name:'Forest Green MD',       hex:'#6C8B4A'},
+  {code:'987',   name:'Forest Green DK',       hex:'#58753E'},
+  {code:'986',   name:'Forest Green VDK',      hex:'#405C2E'},
+  {code:'504',   name:'Blue Green VLT',        hex:'#C7DBCE'},
+  {code:'3813',  name:'Blue Green LT',         hex:'#B4D2BC'},
+  {code:'503',   name:'Blue Green MD',         hex:'#93B7A2'},
+  {code:'502',   name:'Blue Green',            hex:'#5C8B70'},
+  {code:'501',   name:'Blue Green DK',         hex:'#28644A'},
+  {code:'500',   name:'Blue Green VDK',        hex:'#143B29'},
+  {code:'3817',  name:'Celadon Green LT',      hex:'#A0C4A9'},
+  {code:'3816',  name:'Celadon Green',         hex:'#6C9A7F'},
+  {code:'3815',  name:'Celadon Green DK',      hex:'#4A7B5E'},
+  {code:'3814',  name:'Aquamarine',            hex:'#558D80'},
+  {code:'964',   name:'Sea Green LT',          hex:'#A9E2D6'},
+  {code:'959',   name:'Sea Green MD',          hex:'#5FC6B0'},
+  {code:'958',   name:'Sea Green DK',          hex:'#3EBAA0'},
+  {code:'3812',  name:'Sea Green VDK',         hex:'#2F9E8F'},
+  {code:'993',   name:'Aquamarine VLT',        hex:'#9CD1C0'},
+  {code:'992',   name:'Aquamarine LT',         hex:'#5EB4A0'},
+  {code:'991',   name:'Aquamarine DK',         hex:'#3A7F70'},
+  {code:'943',   name:'Aquamarine MD',         hex:'#14A18C'},
+  {code:'3811',  name:'Turquoise VLT',         hex:'#BCE1E1'},
+  {code:'598',   name:'Turquoise LT',          hex:'#8FC7CE'},
+  {code:'597',   name:'Turquoise',             hex:'#4FAFBE'},
+  {code:'3810',  name:'Turquoise DK',          hex:'#23788C'},
+  {code:'3809',  name:'Turquoise VDK',         hex:'#1C5F6E'},
+  {code:'807',   name:'Peacock Blue',          hex:'#66A9BB'},
+  {code:'806',   name:'Peacock Blue DK',       hex:'#2C8CA0'},
+  {code:'3766',  name:'Peacock Blue LT',       hex:'#4EA4BC'},
+  {code:'3765',  name:'Peacock Blue VDK',      hex:'#1B5C6E'},
+  {code:'519',   name:'Sky Blue',              hex:'#A9CDDF'},
+  {code:'518',   name:'Wedgewood LT',          hex:'#4293A8'},
+  {code:'517',   name:'Wedgewood DK',          hex:'#1B6C8C'},
+  {code:'3760',  name:'Wedgewood MD',          hex:'#3E7DA0'},
+  {code:'3753',  name:'Antique Blue ULT VLT',  hex:'#DDE5EC'},
+  {code:'3752',  name:'Antique Blue VLT',      hex:'#C3D0DD'},
+  {code:'932',   name:'Antique Blue LT',       hex:'#A0B6C8'},
+  {code:'931',   name:'Antique Blue MD',       hex:'#78909F'},
+  {code:'930',   name:'Antique Blue DK',       hex:'#4E6579'},
+  {code:'3750',  name:'Antique Blue VDK',      hex:'#374E5A'},
+  {code:'775',   name:'Baby Blue VLT',         hex:'#DCE9F7'},
+  {code:'3325',  name:'Baby Blue LT',          hex:'#B7D0E8'},
+  {code:'3755',  name:'Baby Blue',             hex:'#93B0D6'},
+  {code:'334',   name:'Baby Blue MD',          hex:'#7196C4'},
+  {code:'322',   name:'Baby Blue DK',          hex:'#5A7FA6'},
+  {code:'312',   name:'Baby Blue VDK',         hex:'#35597E'},
+  {code:'803',   name:'Baby Blue ULT VDK',     hex:'#243F63'},
+  {code:'800',   name:'Delft Blue PALE',       hex:'#C0D2E8'},
+  {code:'809',   name:'Delft Blue',            hex:'#A6BADD'},
+  {code:'799',   name:'Delft Blue MD',         hex:'#8CA9D8'},
+  {code:'798',   name:'Delft Blue DK',         hex:'#5C7FBE'},
+  {code:'797',   name:'Royal Blue',            hex:'#1A5AA0'},
+  {code:'796',   name:'Royal Blue DK',         hex:'#17497D'},
+  {code:'820',   name:'Royal Blue VDK',        hex:'#14366F'},
+  {code:'794',   name:'Cornflower Blue LT',    hex:'#A3B3D6'},
+  {code:'793',   name:'Cornflower Blue MD',    hex:'#7C8FC0'},
+  {code:'792',   name:'Cornflower Blue DK',    hex:'#4E5E9E'},
+  {code:'791',   name:'Cornflower Blue VDK',   hex:'#46538B'},
+  {code:'336',   name:'Navy Blue',             hex:'#253A66'},
+  {code:'823',   name:'Navy Blue DK',          hex:'#1A2A4F'},
+  {code:'939',   name:'Navy Blue VDK',         hex:'#101828'},
+  {code:'3747',  name:'Blue Violet VLT',       hex:'#D8DAEA'},
+  {code:'341',   name:'Blue Violet LT',        hex:'#B7B3D8'},
+  {code:'156',   name:'Blue Violet MD LT',     hex:'#A9A5CE'},
+  {code:'340',   name:'Blue Violet MD',        hex:'#ADA1CE'},
+  {code:'155',   name:'Blue Violet MD DK',     hex:'#9C90C0'},
+  {code:'3746',  name:'Blue Violet DK',        hex:'#7C6BA5'},
+  {code:'333',   name:'Blue Violet VDK',       hex:'#5C5488'},
+  {code:'211',   name:'Lavender LT',           hex:'#E3CBE3'},
+  {code:'210',   name:'Lavender MD',           hex:'#C4A9CD'},
+  {code:'209',   name:'Lavender DK',           hex:'#A98EB5'},
+  {code:'208',   name:'Lavender VDK',          hex:'#835B8F'},
+  {code:'3837',  name:'Lavender ULT DK',       hex:'#6E4B96'},
+  {code:'554',   name:'Violet LT',             hex:'#DBB2D9'},
+  {code:'553',   name:'Violet',                hex:'#A24DA0'},
+  {code:'552',   name:'Violet MD',             hex:'#803A7B'},
+  {code:'550',   name:'Violet VDK',            hex:'#5C2260'},
+  {code:'327',   name:'Violet',                hex:'#633666'},
+  {code:'3609',  name:'Plum ULT LT',           hex:'#F5C8DE'},
+  {code:'3608',  name:'Plum VLT',              hex:'#EA9CC4'},
+  {code:'3607',  name:'Plum LT',               hex:'#C54989'},
+  {code:'718',   name:'Plum',                  hex:'#9C2C7E'},
+  {code:'917',   name:'Plum MD',               hex:'#9B1359'},
+  {code:'915',   name:'Plum DK',               hex:'#82054E'},
+  {code:'605',   name:'Cranberry VLT',         hex:'#FFC0CB'},
+  {code:'604',   name:'Cranberry LT',          hex:'#FFAEC1'},
+  {code:'603',   name:'Cranberry',             hex:'#FF9BC0'},
+  {code:'602',   name:'Cranberry MD',          hex:'#E3457B'},
+  {code:'601',   name:'Cranberry DK',          hex:'#D3186E'},
+  {code:'600',   name:'Cranberry VDK',         hex:'#CE1B62'},
+  {code:'3689',  name:'Mauve LT',              hex:'#F3C8CE'},
+  {code:'3688',  name:'Mauve MD',              hex:'#E0A0A8'},
+  {code:'3687',  name:'Mauve',                 hex:'#C86E7B'},
+  {code:'3803',  name:'Mauve DK',              hex:'#932C4E'},
+  {code:'3802',  name:'Antique Mauve VDK',     hex:'#71354A'},
+  {code:'778',   name:'Antique Mauve VLT',     hex:'#DBB8C0'},
+  {code:'3727',  name:'Antique Mauve LT',      hex:'#D3A6B4'},
+  {code:'316',   name:'Antique Mauve MD',      hex:'#B08095'},
+  {code:'3726',  name:'Antique Mauve DK',      hex:'#9C6B78'},
+  {code:'315',   name:'Antique Mauve MD DK',   hex:'#8C5A6A'},
+  {code:'902',   name:'Garnet VDK',            hex:'#822438'},
+  {code:'814',   name:'Garnet DK',             hex:'#7B1F35'},
+  {code:'815',   name:'Garnet MD',             hex:'#87172E'},
+  {code:'816',   name:'Garnet',                hex:'#95122B'},
+  {code:'498',   name:'Red DK',                hex:'#A71930'},
+  {code:'304',   name:'Red MD',                hex:'#B71E42'},
+  {code:'321',   name:'Red',                   hex:'#C72B3B'},
+  {code:'666',   name:'Red BRIGHT',            hex:'#E31D42'},
+  {code:'350',   name:'Coral MD',              hex:'#E04848'},
+  {code:'349',   name:'Coral DK',              hex:'#D51245'},
+  {code:'817',   name:'Coral Red VDK',         hex:'#BB3016'},
+  {code:'351',   name:'Coral',                 hex:'#E96A67'},
+  {code:'352',   name:'Coral LT',              hex:'#FD9C8E'},
+  {code:'353',   name:'Peach',                 hex:'#FDBFAC'},
+  {code:'754',   name:'Peach LT',              hex:'#F7CDBB'},
+  {code:'948',   name:'Peach VLT',             hex:'#FEE6DE'},
+  {code:'967',   name:'Apricot VLT',           hex:'#FFDED4'},
+  {code:'3824',  name:'Apricot LT',            hex:'#FCC0B0'},
+  {code:'3341',  name:'Apricot',               hex:'#FCA486'},
+  {code:'3340',  name:'Apricot MD',            hex:'#FF836F'},
+  {code:'608',   name:'Burnt Orange BRIGHT',   hex:'#FD5E35'},
+  {code:'606',   name:'Orange Red BRIGHT',     hex:'#F82717'},
+  {code:'947',   name:'Burnt Orange',          hex:'#FF7B4D'},
+  {code:'946',   name:'Burnt Orange MD',       hex:'#EB6D2F'},
+  {code:'900',   name:'Burnt Orange DK',       hex:'#D5330E'},
+  {code:'722',   name:'Orange Spice LT',       hex:'#F79E6E'},
+  {code:'721',   name:'Orange Spice MD',       hex:'#F28C4B'},
+  {code:'720',   name:'Orange Spice DK',       hex:'#E55C1E'},
+  {code:'3770',  name:'Tawny VLT',             hex:'#FDEEE0'},
+  {code:'951',   name:'Tawny LT',              hex:'#FBE0CC'},
+  {code:'945',   name:'Tawny',                 hex:'#F2D5C0'},
+  {code:'3856',  name:'Mahogany ULT VLT',      hex:'#FFD3B0'},
+  {code:'224',   name:'Shell Pink VLT',        hex:'#EBB7AF'},
+  {code:'223',   name:'Shell Pink LT',         hex:'#CC8C7F'},
+  {code:'3722',  name:'Shell Pink MD',         hex:'#B5675E'},
+  {code:'3721',  name:'Shell Pink DK',         hex:'#9A4E4A'},
+  {code:'221',   name:'Shell Pink VDK',        hex:'#7C3A38'},
+  {code:'819',   name:'Baby Pink LT',          hex:'#FFF0EE'},
+  {code:'818',   name:'Baby Pink',             hex:'#FFDFD9'},
+  {code:'957',   name:'Geranium PALE',         hex:'#FDA8B0'},
+  {code:'956',   name:'Geranium',              hex:'#FF8F9B'},
+  {code:'3716',  name:'Dusty Rose VLT',        hex:'#FFBFC0'},
+  {code:'963',   name:'Dusty Rose ULT VLT',    hex:'#FFD8D8'},
+  {code:'962',   name:'Dusty Rose MD',         hex:'#E8879B'},
+  {code:'961',   name:'Dusty Rose DK',         hex:'#DD6A73'},
+  {code:'760',   name:'Salmon',                hex:'#F5ADAD'},
+  {code:'761',   name:'Salmon LT',             hex:'#FFC9C9'},
+  {code:'3712',  name:'Salmon MD',             hex:'#F18178'},
+  {code:'3328',  name:'Salmon DK',             hex:'#E36C6C'},
+  {code:'347',   name:'Salmon VDK',            hex:'#BF2D2D'},
+  {code:'776',   name:'Pink MD',               hex:'#FCB0B8'},
+  {code:'3326',  name:'Rose LT',               hex:'#FBB0B7'},
+  {code:'899',   name:'Rose MD',               hex:'#F17A8E'},
+  {code:'335',   name:'Rose',                  hex:'#EE4B6A'},
+  {code:'326',   name:'Rose VDK',              hex:'#BC2352'},
+  {code:'3706',  name:'Melon MD',              hex:'#FFADB4'},
+  {code:'3705',  name:'Melon DK',              hex:'#FF7D87'},
+  {code:'3801',  name:'Melon VDK',             hex:'#E74C63'},
+  {code:'3831',  name:'Raspberry DK',          hex:'#B63E5A'},
+  {code:'3832',  name:'Raspberry MD',          hex:'#DB6A74'},
+  {code:'3833',  name:'Raspberry LT',          hex:'#EA9199'},
+  {code:'154',   name:'Grape VDK',             hex:'#523141'},
+  {code:'3834',  name:'Grape DK',              hex:'#72395A'},
+  {code:'3835',  name:'Grape MD',              hex:'#9464A0'},
+  {code:'3836',  name:'Grape LT',              hex:'#BA9DC4'},
+  {code:'3743',  name:'Antique Violet VLT',    hex:'#DDD5DE'},
+  {code:'3042',  name:'Antique Violet LT',     hex:'#C5AEB5'},
+  {code:'3041',  name:'Antique Violet MD',     hex:'#A6899A'},
+  {code:'3740',  name:'Antique Violet DK',     hex:'#7C5F6E'},
+  {code:'160',   name:'Gray Blue MD',          hex:'#9B9BC0'},
+  {code:'161',   name:'Gray Blue',             hex:'#7C7CA8'},
+  {code:'159',   name:'Gray Blue LT',          hex:'#C4C4DA'},
+  {code:'168',   name:'Pewter VLT',            hex:'#C8C8C8'},
+  {code:'169',   name:'Pewter LT',             hex:'#A0A0A0'}
+];
+
+/* 色変換ユーティリティ（sRGB <-> CIE Lab、色差 CIE76） */
+var Color = (function () {
+  function hexToRgb(hex) {
+    var h = String(hex).trim().replace('#', '');
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+    var n = parseInt(h, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  function rgbToHex(r, g, b) {
+    function p(v) {
+      v = Math.max(0, Math.min(255, Math.round(v)));
+      return (v < 16 ? '0' : '') + v.toString(16);
+    }
+    return '#' + (p(r) + p(g) + p(b)).toUpperCase();
+  }
+
+  function normalizeHex(hex) {
+    var rgb = hexToRgb(hex);
+    return rgb ? rgbToHex(rgb[0], rgb[1], rgb[2]) : null;
+  }
+
+  function srgbToLinear(c) {
+    c /= 255;
+    return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  }
+
+  function rgbToLab(r, g, b) {
+    var R = srgbToLinear(r), G = srgbToLinear(g), B = srgbToLinear(b);
+    var x = (R * 0.4124564 + G * 0.3575761 + B * 0.1804375) / 0.95047;
+    var y = (R * 0.2126729 + G * 0.7151522 + B * 0.0721750);
+    var z = (R * 0.0193339 + G * 0.1191920 + B * 0.9503041) / 1.08883;
+    function f(t) { return t > 0.008856451679 ? Math.cbrt(t) : (7.787037 * t + 16 / 116); }
+    var fx = f(x), fy = f(y), fz = f(z);
+    return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+  }
+
+  function hexToLab(hex) {
+    var rgb = hexToRgb(hex) || [0, 0, 0];
+    return rgbToLab(rgb[0], rgb[1], rgb[2]);
+  }
+
+  /* 明度重みを少し上げた CIE76 距離（平方） */
+  function labDist2(a, b) {
+    var dl = a[0] - b[0], da = a[1] - b[1], db = a[2] - b[2];
+    return dl * dl * 1.2 + da * da + db * db;
+  }
+
+  /* 記号やテキストを載せるときの読みやすい前景色 */
+  function readableInk(hex) {
+    var rgb = hexToRgb(hex) || [255, 255, 255];
+    var l = 0.2126 * srgbToLinear(rgb[0]) + 0.7152 * srgbToLinear(rgb[1]) + 0.0722 * srgbToLinear(rgb[2]);
+    return l > 0.42 ? '#101010' : '#FFFFFF';
+  }
+
+  /* 白側に混ぜて薄くする（実寸チャートの下地用） */
+  function tint(hex, ratio) {
+    var rgb = hexToRgb(hex) || [255, 255, 255];
+    return rgbToHex(
+      rgb[0] + (255 - rgb[0]) * ratio,
+      rgb[1] + (255 - rgb[1]) * ratio,
+      rgb[2] + (255 - rgb[2]) * ratio
+    );
+  }
+
+  return {
+    hexToRgb: hexToRgb, rgbToHex: rgbToHex, normalizeHex: normalizeHex,
+    rgbToLab: rgbToLab, hexToLab: hexToLab, labDist2: labDist2,
+    readableInk: readableInk, tint: tint
+  };
+})();
+
+/* 画像 -> ビーズ格子 への変換（サンプリング / 減色 / パレット割当） */
+var Quantize = (function () {
+
+  /* 画像を cols x rows の格子にサンプリングして RGB 配列を返す。
+     fit: 'cover'（はみ出しトリミング）/ 'contain'（全体を収めて余白は bg 色） */
+  function sampleGrid(img, cols, rows, opts) {
+    opts = opts || {};
+    var fit = opts.fit || 'cover';
+    var bg = opts.bg || '#FFFFFF';
+    var cv = document.createElement('canvas');
+    cv.width = cols; cv.height = rows;
+    var ctx = cv.getContext('2d', { willReadFrequently: true });
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, cols, rows);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    var scale = (fit === 'contain')
+      ? Math.min(cols / iw, rows / ih)
+      : Math.max(cols / iw, rows / ih);
+    scale *= (opts.zoom || 1);
+    var dw = iw * scale, dh = ih * scale;
+    var dx = (cols - dw) / 2 + (opts.offsetX || 0) * cols;
+    var dy = (rows - dh) / 2 + (opts.offsetY || 0) * rows;
+
+    /* 縮小率が大きいときは段階的に縮めてモアレを防ぐ */
+    var src = img;
+    if (dw < iw / 2) {
+      var tw = iw, th = ih, tmp = null;
+      var cur = document.createElement('canvas');
+      cur.width = iw; cur.height = ih;
+      cur.getContext('2d').drawImage(img, 0, 0);
+      while (tw / 2 > dw) {
+        tw = Math.max(1, Math.round(tw / 2));
+        th = Math.max(1, Math.round(th / 2));
+        tmp = document.createElement('canvas');
+        tmp.width = tw; tmp.height = th;
+        var tc = tmp.getContext('2d');
+        tc.imageSmoothingQuality = 'high';
+        tc.drawImage(cur, 0, 0, tw, th);
+        cur = tmp;
+      }
+      src = cur;
+    }
+    ctx.drawImage(src, dx, dy, dw, dh);
+
+    var data = ctx.getImageData(0, 0, cols, rows).data;
+    var out = new Float32Array(cols * rows * 3);
+    var bgRgb = Color.hexToRgb(bg) || [255, 255, 255];
+    for (var i = 0, n = cols * rows; i < n; i++) {
+      var a = data[i * 4 + 3] / 255;
+      out[i * 3]     = data[i * 4]     * a + bgRgb[0] * (1 - a);
+      out[i * 3 + 1] = data[i * 4 + 1] * a + bgRgb[1] * (1 - a);
+      out[i * 3 + 2] = data[i * 4 + 2] * a + bgRgb[2] * (1 - a);
+    }
+    return out;
+  }
+
+  /* 明るさ / コントラスト / 彩度 / ガンマ の調整（-100..100, 0..200, 50..150） */
+  function adjust(rgb, o) {
+    var br = (o.brightness || 0) * 2.55;
+    var ct = (o.contrast || 0) / 100;
+    var cf = (1 + ct) * (ct > 0 ? (1 + ct) : 1);
+    var sat = (o.saturation == null ? 100 : o.saturation) / 100;
+    var gamma = (o.gamma == null ? 100 : o.gamma) / 100;
+    for (var i = 0; i < rgb.length; i += 3) {
+      var r = rgb[i], g = rgb[i + 1], b = rgb[i + 2];
+      r += br; g += br; b += br;
+      r = (r - 128) * cf + 128; g = (g - 128) * cf + 128; b = (b - 128) * cf + 128;
+      var y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      r = y + (r - y) * sat; g = y + (g - y) * sat; b = y + (b - y) * sat;
+      if (gamma !== 1) {
+        r = 255 * Math.pow(Math.max(0, r) / 255, 1 / gamma);
+        g = 255 * Math.pow(Math.max(0, g) / 255, 1 / gamma);
+        b = 255 * Math.pow(Math.max(0, b) / 255, 1 / gamma);
+      }
+      rgb[i]     = r < 0 ? 0 : r > 255 ? 255 : r;
+      rgb[i + 1] = g < 0 ? 0 : g > 255 ? 255 : g;
+      rgb[i + 2] = b < 0 ? 0 : b > 255 ? 255 : b;
+    }
+    return rgb;
+  }
+
+  function toLabArray(rgb) {
+    var n = rgb.length / 3, lab = new Float32Array(rgb.length);
+    for (var i = 0; i < n; i++) {
+      var l = Color.rgbToLab(rgb[i * 3], rgb[i * 3 + 1], rgb[i * 3 + 2]);
+      lab[i * 3] = l[0]; lab[i * 3 + 1] = l[1]; lab[i * 3 + 2] = l[2];
+    }
+    return lab;
+  }
+
+  /* k-means++（Lab 空間）でクラスタ中心を求める */
+  function kmeans(lab, k, iterations) {
+    var n = lab.length / 3;
+    k = Math.min(k, n);
+    var centers = new Float32Array(k * 3);
+    var d2 = new Float32Array(n);
+    var rnd = mulberry32(20240501);
+
+    var first = Math.floor(rnd() * n);
+    centers[0] = lab[first * 3]; centers[1] = lab[first * 3 + 1]; centers[2] = lab[first * 3 + 2];
+    for (var i = 0; i < n; i++) d2[i] = dist2(lab, i, centers, 0);
+
+    for (var c = 1; c < k; c++) {
+      var sum = 0, j;
+      for (j = 0; j < n; j++) sum += d2[j];
+      var target = rnd() * sum, acc = 0, pick = n - 1;
+      for (j = 0; j < n; j++) { acc += d2[j]; if (acc >= target) { pick = j; break; } }
+      centers[c * 3] = lab[pick * 3];
+      centers[c * 3 + 1] = lab[pick * 3 + 1];
+      centers[c * 3 + 2] = lab[pick * 3 + 2];
+      for (j = 0; j < n; j++) {
+        var dd = dist2(lab, j, centers, c);
+        if (dd < d2[j]) d2[j] = dd;
+      }
+    }
+
+    var assign = new Int32Array(n);
+    var sums = new Float64Array(k * 3), counts = new Int32Array(k);
+    for (var it = 0; it < (iterations || 14); it++) {
+      sums.fill(0); counts.fill(0);
+      for (var p = 0; p < n; p++) {
+        var best = 0, bd = Infinity;
+        for (var q = 0; q < k; q++) {
+          var d = dist2(lab, p, centers, q);
+          if (d < bd) { bd = d; best = q; }
+        }
+        assign[p] = best;
+        counts[best]++;
+        sums[best * 3] += lab[p * 3];
+        sums[best * 3 + 1] += lab[p * 3 + 1];
+        sums[best * 3 + 2] += lab[p * 3 + 2];
+      }
+      for (var m = 0; m < k; m++) {
+        if (!counts[m]) continue;
+        centers[m * 3] = sums[m * 3] / counts[m];
+        centers[m * 3 + 1] = sums[m * 3 + 1] / counts[m];
+        centers[m * 3 + 2] = sums[m * 3 + 2] / counts[m];
+      }
+    }
+    var res = [];
+    for (var z = 0; z < k; z++) {
+      res.push({ lab: [centers[z * 3], centers[z * 3 + 1], centers[z * 3 + 2]], count: counts[z] });
+    }
+    return res.filter(function (r) { return r.count > 0; })
+              .sort(function (a, b) { return b.count - a.count; });
+  }
+
+  function dist2(arr, i, centers, c) {
+    var dl = arr[i * 3] - centers[c * 3];
+    var da = arr[i * 3 + 1] - centers[c * 3 + 1];
+    var db = arr[i * 3 + 2] - centers[c * 3 + 2];
+    return dl * dl * 1.2 + da * da + db * db;
+  }
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  /* クラスタ中心を「使える色（DMC等）」に重複なくスナップする */
+  function snapToStock(clusters, stock) {
+    var stockLab = stock.map(function (s) { return Color.hexToLab(s.hex); });
+    var used = {}, picked = [];
+    clusters.forEach(function (cl) {
+      var best = -1, bd = Infinity;
+      for (var i = 0; i < stock.length; i++) {
+        if (used[i]) continue;
+        var d = Color.labDist2(cl.lab, stockLab[i]);
+        if (d < bd) { bd = d; best = i; }
+      }
+      if (best >= 0) {
+        used[best] = true;
+        picked.push({ code: stock[best].code, name: stock[best].name, hex: stock[best].hex });
+      }
+    });
+    return picked;
+  }
+
+  /* パレットへの割当。dither=true で Floyd–Steinberg 誤差拡散 */
+  function mapToPalette(rgb, cols, rows, palette, dither, strength) {
+    var pLab = palette.map(function (p) { return Color.hexToLab(p.hex); });
+    var work = dither ? Float32Array.from(rgb) : rgb;
+    var idx = new Int16Array(cols * rows);
+    var k = (strength == null ? 0.85 : strength);
+
+    for (var y = 0; y < rows; y++) {
+      for (var x = 0; x < cols; x++) {
+        var i = y * cols + x;
+        var lab = Color.rgbToLab(work[i * 3], work[i * 3 + 1], work[i * 3 + 2]);
+        var best = 0, bd = Infinity;
+        for (var p = 0; p < pLab.length; p++) {
+          var d = Color.labDist2(lab, pLab[p]);
+          if (d < bd) { bd = d; best = p; }
+        }
+        idx[i] = best;
+        if (dither) {
+          var pr = Color.hexToRgb(palette[best].hex);
+          var er = (work[i * 3] - pr[0]) * k;
+          var eg = (work[i * 3 + 1] - pr[1]) * k;
+          var eb = (work[i * 3 + 2] - pr[2]) * k;
+          spread(work, cols, rows, x + 1, y,     er, eg, eb, 7 / 16);
+          spread(work, cols, rows, x - 1, y + 1, er, eg, eb, 3 / 16);
+          spread(work, cols, rows, x,     y + 1, er, eg, eb, 5 / 16);
+          spread(work, cols, rows, x + 1, y + 1, er, eg, eb, 1 / 16);
+        }
+      }
+    }
+    return idx;
+  }
+
+  function spread(work, cols, rows, x, y, er, eg, eb, f) {
+    if (x < 0 || x >= cols || y < 0 || y >= rows) return;
+    var i = (y * cols + x) * 3;
+    work[i] += er * f; work[i + 1] += eg * f; work[i + 2] += eb * f;
+  }
+
+  /* 孤立した1粒（周囲8マスに同色なし）を周囲の最頻色へ吸収する */
+  function despeckle(idx, cols, rows) {
+    var out = Int16Array.from(idx), changed = 0;
+    for (var y = 0; y < rows; y++) {
+      for (var x = 0; x < cols; x++) {
+        var i = y * cols + x, v = idx[i], same = 0, tally = {};
+        for (var dy = -1; dy <= 1; dy++) {
+          for (var dx = -1; dx <= 1; dx++) {
+            if (!dx && !dy) continue;
+            var nx = x + dx, ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+            var nv = idx[ny * cols + nx];
+            if (nv === v) same++;
+            tally[nv] = (tally[nv] || 0) + 1;
+          }
+        }
+        if (same === 0) {
+          var bestV = v, bestC = -1;
+          for (var key in tally) if (tally[key] > bestC) { bestC = tally[key]; bestV = +key; }
+          out[i] = bestV; changed++;
+        }
+      }
+    }
+    return { idx: out, changed: changed };
+  }
+
+  return {
+    sampleGrid: sampleGrid, adjust: adjust, toLabArray: toLabArray,
+    kmeans: kmeans, snapToStock: snapToStock, mapToPalette: mapToPalette,
+    despeckle: despeckle
+  };
+})();
+
+/* ビーズ格子を canvas に描画する（プレビュー / PNG 書き出し / PDF用サムネイル共通） */
+var Render = (function () {
+
+  function drawGrid(ctx, o) {
+    var cols = o.cols, rows = o.rows, idx = o.idx, pal = o.palette;
+    var cs = o.cell, ox = o.ox || 0, oy = o.oy || 0;
+    var mode = o.mode || 'color';        // color | symbol | both
+    var shape = o.shape || 'square';     // square | round
+    var showSym = (mode === 'symbol' || mode === 'both') && cs >= 7;
+
+    ctx.save();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(ox, oy, cols * cs, rows * cs);
+
+    for (var y = 0; y < rows; y++) {
+      for (var x = 0; x < cols; x++) {
+        var p = pal[idx[y * cols + x]];
+        if (!p) continue;
+        var px = ox + x * cs, py = oy + y * cs;
+        ctx.fillStyle = (mode === 'symbol') ? Color.tint(p.hex, 0.72) : p.hex;
+        if (shape === 'round' && cs >= 4 && mode !== 'symbol') {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(px, py, cs, cs);
+          ctx.fillStyle = p.hex;
+          ctx.beginPath();
+          ctx.arc(px + cs / 2, py + cs / 2, cs * 0.46, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillRect(px, py, cs, cs);
+        }
+      }
+    }
+
+    if (showSym) {
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = Math.round(cs * 0.68) + 'px "DejaVu Sans Mono", Menlo, Consolas, monospace';
+      for (var yy = 0; yy < rows; yy++) {
+        for (var xx = 0; xx < cols; xx++) {
+          var q = pal[idx[yy * cols + xx]];
+          if (!q) continue;
+          ctx.fillStyle = (mode === 'symbol') ? '#222222' : Color.readableInk(q.hex);
+          ctx.fillText(q.symbol || '?', ox + xx * cs + cs / 2, oy + yy * cs + cs * 0.54);
+        }
+      }
+    }
+
+    if (o.showGrid && cs >= 3) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (var gx = 0; gx <= cols; gx++) {
+        ctx.moveTo(Math.round(ox + gx * cs) + 0.5, oy);
+        ctx.lineTo(Math.round(ox + gx * cs) + 0.5, oy + rows * cs);
+      }
+      for (var gy = 0; gy <= rows; gy++) {
+        ctx.moveTo(ox, Math.round(oy + gy * cs) + 0.5);
+        ctx.lineTo(ox + cols * cs, Math.round(oy + gy * cs) + 0.5);
+      }
+      ctx.stroke();
+
+      var every = o.gridEvery || 10;
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      for (var bx = 0; bx <= cols; bx += every) {
+        ctx.moveTo(Math.round(ox + bx * cs) + 0.5, oy);
+        ctx.lineTo(Math.round(ox + bx * cs) + 0.5, oy + rows * cs);
+      }
+      for (var by = 0; by <= rows; by += every) {
+        ctx.moveTo(ox, Math.round(oy + by * cs) + 0.5);
+        ctx.lineTo(ox + cols * cs, Math.round(oy + by * cs) + 0.5);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* 書き出し用に丸ごと1枚の canvas を作る */
+  function toCanvas(o) {
+    var cv = document.createElement('canvas');
+    cv.width = o.cols * o.cell;
+    cv.height = o.rows * o.cell;
+    var ctx = cv.getContext('2d');
+    drawGrid(ctx, Object.assign({}, o, { ox: 0, oy: 0 }));
+    return cv;
+  }
+
+  return { drawGrid: drawGrid, toCanvas: toCanvas };
+})();
+
+/* 依存ライブラリなしの最小 PDF ライター。
+ * ・単位は mm、原点は「ページ左上」（画面座標と同じ向き）
+ * ・フォントは標準14書体の Helvetica / Helvetica-Bold（埋め込み不要・ASCII のみ）
+ * ・日本語は canvas で画像化してから image() で貼る */
+var MiniPDF = (function () {
+  var MM = 72 / 25.4;
+
+  var W = {' ':278,'!':278,'"':355,'#':556,'$':556,'%':889,'&':667,"'":191,'(':333,')':333,
+    '*':389,'+':584,',':278,'-':333,'.':278,'/':278,'0':556,'1':556,'2':556,'3':556,'4':556,
+    '5':556,'6':556,'7':556,'8':556,'9':556,':':278,';':278,'<':584,'=':584,'>':584,'?':556,
+    '@':1015,'A':667,'B':667,'C':722,'D':722,'E':667,'F':611,'G':778,'H':722,'I':278,'J':500,
+    'K':667,'L':556,'M':833,'N':722,'O':778,'P':667,'Q':778,'R':722,'S':667,'T':611,'U':722,
+    'V':667,'W':944,'X':667,'Y':667,'Z':611,'[':278,'\\':278,']':278,'^':469,'_':556,'`':333,
+    'a':556,'b':556,'c':500,'d':556,'e':556,'f':278,'g':556,'h':556,'i':222,'j':222,'k':500,
+    'l':222,'m':833,'n':556,'o':556,'p':556,'q':556,'r':333,'s':500,'t':278,'u':556,'v':500,
+    'w':722,'x':500,'y':500,'z':500,'{':334,'|':260,'}':334,'~':584};
+
+  function ascii(s) {
+    return String(s).replace(/[^\x20-\x7E]/g, function (c) { return c === '×' ? 'x' : '?'; });
+  }
+  function textWidth(s, size, bold) {
+    s = ascii(s);
+    var w = 0;
+    for (var i = 0; i < s.length; i++) w += (W[s[i]] || 556);
+    return w / 1000 * size * (bold ? 1.03 : 1);
+  }
+  function esc(s) { return ascii(s).replace(/([\\()])/g, '\\$1'); }
+  function num(v) { return (Math.round(v * 1000) / 1000).toString(); }
+  function rgbOf(hex) {
+    var c = Color.hexToRgb(hex) || [0, 0, 0];
+    return num(c[0] / 255) + ' ' + num(c[1] / 255) + ' ' + num(c[2] / 255);
+  }
+
+  function Page(doc, wmm, hmm) {
+    this.doc = doc; this.w = wmm; this.h = hmm; this.ops = []; this.images = [];
+  }
+  Page.prototype.X = function (x) { return num(x * MM); };
+  Page.prototype.Y = function (y) { return num((this.h - y) * MM); };
+
+  Page.prototype.rect = function (x, y, w, h, fill, stroke, lw) {
+    var s = '';
+    if (fill) s += rgbOf(fill) + ' rg ';
+    if (stroke) s += rgbOf(stroke) + ' RG ' + num((lw || 0.2) * MM) + ' w ';
+    s += this.X(x) + ' ' + this.Y(y + h) + ' ' + num(w * MM) + ' ' + num(h * MM) + ' re ';
+    s += fill && stroke ? 'B' : fill ? 'f' : 'S';
+    this.ops.push(s);
+    return this;
+  };
+
+  Page.prototype.line = function (x1, y1, x2, y2, color, lw) {
+    this.ops.push(rgbOf(color || '#000') + ' RG ' + num((lw || 0.2) * MM) + ' w ' +
+      this.X(x1) + ' ' + this.Y(y1) + ' m ' + this.X(x2) + ' ' + this.Y(y2) + ' l S');
+    return this;
+  };
+
+  Page.prototype.circle = function (cx, cy, r, fill, stroke, lw) {
+    var k = 0.5523 * r;
+    var p = [];
+    function pt(x, y) { return num(x * MM) + ' ' + num(y * MM); }
+    var Y = this.h;
+    function fy(y) { return Y - y; }
+    p.push(pt(cx, fy(cy - r)) + ' m');
+    p.push(pt(cx + k, fy(cy - r)) + ' ' + pt(cx + r, fy(cy - k)) + ' ' + pt(cx + r, fy(cy)) + ' c');
+    p.push(pt(cx + r, fy(cy + k)) + ' ' + pt(cx + k, fy(cy + r)) + ' ' + pt(cx, fy(cy + r)) + ' c');
+    p.push(pt(cx - k, fy(cy + r)) + ' ' + pt(cx - r, fy(cy + k)) + ' ' + pt(cx - r, fy(cy)) + ' c');
+    p.push(pt(cx - r, fy(cy - k)) + ' ' + pt(cx - k, fy(cy - r)) + ' ' + pt(cx, fy(cy - r)) + ' c');
+    var s = '';
+    if (fill) s += rgbOf(fill) + ' rg ';
+    if (stroke) s += rgbOf(stroke) + ' RG ' + num((lw || 0.2) * MM) + ' w ';
+    s += p.join(' ') + ' ' + (fill && stroke ? 'B' : fill ? 'f' : 'S');
+    this.ops.push(s);
+    return this;
+  };
+
+  /* y はベースライン位置(mm)。align: left|center|right */
+  Page.prototype.text = function (str, x, y, size, opt) {
+    opt = opt || {};
+    var bold = !!opt.bold;
+    var w = textWidth(str, size, bold);
+    var tx = x;
+    if (opt.align === 'center') tx = x - w / 2;
+    else if (opt.align === 'right') tx = x - w;
+    this.ops.push('BT ' + rgbOf(opt.color || '#000') + ' rg /' + (bold ? 'F2' : 'F1') + ' ' +
+      num(size) + ' Tf ' + num(tx * MM) + ' ' + this.Y(y) + ' Td (' + esc(str) + ') Tj ET');
+    return this;
+  };
+
+  /* 中央そろえで「セル内」に収める記号描画 */
+  Page.prototype.glyph = function (ch, cx, cy, size, color) {
+    this.text(ch, cx, cy + size * 0.36 / MM, size, { align: 'center', color: color });
+    return this;
+  };
+
+  /* JPEG の dataURL を貼る */
+  Page.prototype.image = function (dataUrl, x, y, w, h) {
+    var id = this.doc._addImage(dataUrl);
+    this.images.push(id);
+    this.ops.push('q ' + num(w * MM) + ' 0 0 ' + num(h * MM) + ' ' +
+      this.X(x) + ' ' + this.Y(y + h) + ' cm /Im' + id + ' Do Q');
+    return this;
+  };
+
+  function Doc() { this.pages = []; this.imgs = []; }
+
+  Doc.prototype.addPage = function (wmm, hmm) {
+    var p = new Page(this, wmm, hmm);
+    this.pages.push(p);
+    return p;
+  };
+
+  Doc.prototype._addImage = function (dataUrl) {
+    for (var i = 0; i < this.imgs.length; i++) if (this.imgs[i].url === dataUrl) return i;
+    var comma = dataUrl.indexOf(',');
+    var bin = atob(dataUrl.slice(comma + 1));
+    var dim = jpegSize(bin);
+    this.imgs.push({ url: dataUrl, bin: bin, w: dim[0], h: dim[1] });
+    return this.imgs.length - 1;
+  };
+
+  function jpegSize(bin) {
+    var i = 2;
+    while (i < bin.length) {
+      if (bin.charCodeAt(i) !== 0xFF) { i++; continue; }
+      var marker = bin.charCodeAt(i + 1);
+      var len = (bin.charCodeAt(i + 2) << 8) | bin.charCodeAt(i + 3);
+      if (marker >= 0xC0 && marker <= 0xCF && marker !== 0xC4 && marker !== 0xC8 && marker !== 0xCC) {
+        return [(bin.charCodeAt(i + 7) << 8) | bin.charCodeAt(i + 8),
+                (bin.charCodeAt(i + 5) << 8) | bin.charCodeAt(i + 6)];
+      }
+      i += 2 + len;
+    }
+    return [1, 1];
+  }
+
+  Doc.prototype.build = function () {
+    var objs = [];                      // 1-origin
+    function put(body) { objs.push(body); return objs.length; }
+
+    var catalogId = put('');            // 1
+    var pagesId = put('');              // 2
+    var f1 = put('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    var f2 = put('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+
+    var imgIds = this.imgs.map(function (im) {
+      return put('<< /Type /XObject /Subtype /Image /Width ' + im.w + ' /Height ' + im.h +
+        ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' +
+        im.bin.length + ' >>\nstream\n' + im.bin + '\nendstream');
+    });
+
+    var kids = [];
+    this.pages.forEach(function (p) {
+      var content = p.ops.join('\n');
+      var cid = put('<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream');
+      var xo = p.images.length
+        ? ' /XObject << ' + p.images.map(function (i) { return '/Im' + i + ' ' + imgIds[i] + ' 0 R'; }).join(' ') + ' >>'
+        : '';
+      var pid = put('<< /Type /Page /Parent ' + pagesId + ' 0 R /MediaBox [0 0 ' +
+        num(p.w * MM) + ' ' + num(p.h * MM) + '] /Resources << /Font << /F1 ' + f1 +
+        ' 0 R /F2 ' + f2 + ' 0 R >>' + xo + ' >> /Contents ' + cid + ' 0 R >>');
+      kids.push(pid);
+    });
+
+    objs[catalogId - 1] = '<< /Type /Catalog /Pages ' + pagesId + ' 0 R >>';
+    objs[pagesId - 1] = '<< /Type /Pages /Count ' + kids.length + ' /Kids [' +
+      kids.map(function (k) { return k + ' 0 R'; }).join(' ') + '] >>';
+
+    var out = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
+    var offsets = [];
+    objs.forEach(function (body, i) {
+      offsets.push(out.length);
+      out += (i + 1) + ' 0 obj\n' + body + '\nendobj\n';
+    });
+    var xref = out.length;
+    out += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n';
+    offsets.forEach(function (o) {
+      out += ('0000000000' + o).slice(-10) + ' 00000 n \n';
+    });
+    out += 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root ' + catalogId + ' 0 R >>\n' +
+           'startxref\n' + xref + '\n%%EOF\n';
+
+    var bytes = new Uint8Array(out.length);
+    for (var i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 0xFF;
+    return new Blob([bytes], { type: 'application/pdf' });
+  };
+
+  Doc.prototype.save = function (filename) {
+    var url = URL.createObjectURL(this.build());
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  };
+
+  return { Doc: Doc, textWidth: textWidth, MM: MM };
+})();
+
+/* ダイヤモンドアート図案メーカー — UI とアプリ本体 */
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var SYMBOLS = ('ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz' +
+                 '0123456789+*=<>#@%&$?!~^').split('');
+  var STORE_KEY = 'diamond-art-maker-v1';
+
+  var S = {
+    img: null, srcUrl: null,
+    cols: 0, rows: 0, bead: 2.5,
+    idx: null, palette: [], counts: [],
+    sel: 0, edited: false, undo: [], cellPx: 10, everGenerated: false,
+    editingIndex: -1
+  };
+
+  /* ================= 寸法計算 ================= */
+
+  function beadSize() {
+    var p = $('beadPreset').value;
+    return p === 'custom' ? Math.max(0.5, +$('bead').value || 2.5) : +p;
+  }
+
+  function dims() {
+    var pw = Math.max(20, +$('paperW').value || 100);
+    var ph = Math.max(20, +$('paperH').value || 148);
+    var m = Math.max(0, +$('margin').value || 0);
+    var b = beadSize();
+    var cols = Math.max(1, Math.floor((pw - 2 * m) / b + 1e-9));
+    var rows = Math.max(1, Math.floor((ph - 2 * m) / b + 1e-9));
+    var artW = cols * b, artH = rows * b;
+    return {
+      paperW: pw, paperH: ph, bead: b, cols: cols, rows: rows,
+      artW: artW, artH: artH, ox: (pw - artW) / 2, oy: (ph - artH) / 2
+    };
+  }
+
+  function fmt(n, d) { return n.toFixed(d == null ? 1 : d); }
+  function comma(n) { return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+  function updateCalc() {
+    var d = dims();
+    var total = d.cols * d.rows;
+    var bags = Math.ceil(total / Math.max(1, +$('perBag').value || 200));
+    $('calcInfo').textContent =
+      '図案の実寸: ' + fmt(d.artW) + ' × ' + fmt(d.artH) + ' mm\n' +
+      'マス数: ' + d.cols + ' × ' + d.rows + ' = ' + comma(total) + ' 粒\n' +
+      '用紙: ' + fmt(d.paperW, 0) + ' × ' + fmt(d.paperH, 0) + ' mm' +
+      '（実際の余白 左右 ' + fmt(d.ox) + ' / 上下 ' + fmt(d.oy) + ' mm）\n' +
+      'ビーズ間隔 ' + d.bead + ' mm ／ 総粒数の目安 約 ' + bags + ' 袋分';
+    var head = (S.idx ? comma(S.cols * S.rows) + '粒 / ' + S.palette.length + '色 ／ ' : '') +
+      fmt(d.artW) + '×' + fmt(d.artH) + 'mm（' + d.cols + '×' + d.rows + 'マス, ' + d.bead + 'mm）';
+    $('dimInfo').textContent = head;
+  }
+
+  /* ================= 画像読み込み ================= */
+
+  function loadImageFile(file) {
+    if (!file || !/^image\//.test(file.type)) { status('画像ファイルを選んでください'); return; }
+    var fr = new FileReader();
+    fr.onload = function () { setImage(fr.result, true); };
+    fr.readAsDataURL(file);
+  }
+
+  function setImage(dataUrl, autoGen, quiet) {
+    var img = new Image();
+    img.onload = function () {
+      S.img = img; S.srcUrl = dataUrl;
+      var t = $('thumb'); t.src = dataUrl; t.hidden = false;
+      if (!quiet) status('画像を読み込みました（' + img.naturalWidth + '×' + img.naturalHeight + 'px）');
+      if (autoGen) generate();
+    };
+    img.onerror = function () { status('画像を読み込めませんでした'); };
+    img.src = dataUrl;
+  }
+
+  /* ================= 図案生成 ================= */
+
+  function generate() {
+    if (!S.img) { status('先に画像を選んでください'); return; }
+    status('図案を計算しています…');
+    setTimeout(generateNow, 20);
+  }
+
+  function generateNow() {
+    var d = dims();
+    S.cols = d.cols; S.rows = d.rows; S.bead = d.bead;
+
+    var rgb = Quantize.sampleGrid(S.img, d.cols, d.rows, {
+      fit: $('fit').value,
+      bg: $('bg').value,
+      zoom: (+$('zoom').value || 100) / 100,
+      offsetX: (+$('offX').value || 0) / 100,
+      offsetY: (+$('offY').value || 0) / 100
+    });
+    Quantize.adjust(rgb, {
+      brightness: +$('brightness').value,
+      contrast: +$('contrast').value,
+      saturation: +$('saturation').value,
+      gamma: +$('gamma').value
+    });
+
+    var palette;
+    if ($('stock').value === 'lock' && S.palette.length) {
+      palette = S.palette.map(function (p) { return { code: p.code, name: p.name, hex: p.hex }; });
+    } else {
+      var k = Math.max(2, Math.min(60, +$('colors').value || 20));
+      var clusters = Quantize.kmeans(Quantize.toLabArray(rgb), k, 16);
+      palette = Quantize.snapToStock(clusters, DMC_COLORS);
+    }
+
+    var idx = Quantize.mapToPalette(rgb, d.cols, d.rows, palette, $('dither').checked);
+    if ($('despeckle').checked) idx = Quantize.despeckle(idx, d.cols, d.rows).idx;
+
+    /* 使われなかった色を捨てて、多い順に並べ替える */
+    var counts = new Array(palette.length).fill(0);
+    for (var i = 0; i < idx.length; i++) counts[idx[i]]++;
+    var order = palette.map(function (p, i) { return { p: p, c: counts[i], i: i }; })
+      .filter(function (o) { return o.c > 0; })
+      .sort(function (a, b) { return b.c - a.c; });
+    var remap = new Int16Array(palette.length);
+    order.forEach(function (o, n) { remap[o.i] = n; });
+    for (var j = 0; j < idx.length; j++) idx[j] = remap[idx[j]];
+
+    S.palette = order.map(function (o) {
+      return { code: o.p.code, name: o.p.name || '', hex: o.p.hex };
+    });
+    assignSymbols();
+    S.idx = idx;
+    S.sel = 0;
+    S.edited = false;
+    S.undo = [];
+    recount();
+    renderPalette();
+    draw();
+    updateCalc();
+    status('図案を作成しました（' + S.palette.length + '色 / ' + comma(idx.length) + '粒）');
+    autosave();
+    if (!S.everGenerated && isNarrow()) showPanel('preview');
+    if (!S.everGenerated || S.cols * S.cellPx > $('canvasWrap').clientWidth) fitZoom(true);
+    S.everGenerated = true;
+  }
+
+  function assignSymbols() {
+    S.palette.forEach(function (p, i) { p.symbol = SYMBOLS[i % SYMBOLS.length]; });
+  }
+
+  function recount() {
+    S.counts = new Array(S.palette.length).fill(0);
+    if (!S.idx) return;
+    for (var i = 0; i < S.idx.length; i++) {
+      var v = S.idx[i];
+      if (v >= 0 && v < S.counts.length) S.counts[v]++;
+    }
+  }
+
+  /* ================= プレビュー描画 ================= */
+
+  function viewMode() { return $('viewMode').querySelector('.on').dataset.v; }
+  function tool() { return $('tool').querySelector('.on').dataset.t; }
+
+  function draw() {
+    var cv = $('canvas');
+    if (!S.idx) { cv.hidden = true; $('placeholder').hidden = false; return; }
+    cv.hidden = false; $('placeholder').hidden = true;
+
+    var cell = +$('viewZoom').value;
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    var maxPx = 6000;
+    while (Math.max(S.cols, S.rows) * cell * dpr > maxPx && dpr > 1) dpr -= 0.25;
+    while (Math.max(S.cols, S.rows) * cell > maxPx && cell > 3) cell--;
+    S.cellPx = cell;
+    cv.width = S.cols * cell * dpr;
+    cv.height = S.rows * cell * dpr;
+    cv.style.width = (S.cols * cell) + 'px';
+    cv.style.height = (S.rows * cell) + 'px';
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    Render.drawGrid(ctx, {
+      cols: S.cols, rows: S.rows, idx: S.idx, palette: S.palette,
+      cell: cell, mode: viewMode(), shape: $('shape').value,
+      showGrid: $('showGrid').checked, gridEvery: 10
+    });
+  }
+
+  /* 図案全体が画面に収まる表示倍率にする */
+  function fitZoom(silent) {
+    if (!S.cols) return;
+    var wrap = $('canvasWrap');
+    var w = wrap.clientWidth - 34, h = wrap.clientHeight - 34;
+    if (w < 40 || h < 40) return;
+    var c = Math.floor(Math.min(w / S.cols, h / S.rows));
+    c = Math.max(3, Math.min(28, c));
+    $('viewZoom').value = c;
+    draw();
+    if (!silent) status('全体が見える倍率にしました（1マス ' + c + 'px）');
+  }
+
+  function canvasCell(ev) {
+    var cv = $('canvas'), r = cv.getBoundingClientRect();
+    var cell = S.cellPx || +$('viewZoom').value;
+    var x = Math.floor((ev.clientX - r.left) / cell);
+    var y = Math.floor((ev.clientY - r.top) / cell);
+    if (x < 0 || y < 0 || x >= S.cols || y >= S.rows) return null;
+    return { x: x, y: y, i: y * S.cols + x };
+  }
+
+  var painting = false, lastPointerType = 'mouse';
+
+  function pickAt(c) {
+    setSelected(S.idx[c.i]);
+    var row = $('paletteList').children[S.sel];
+    if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+    status('スポイト: ' + S.palette[S.sel].code + ' を選択しました');
+  }
+
+  function onCanvasDown(ev) {
+    lastPointerType = ev.pointerType || 'mouse';
+    if (!S.idx) return;
+    var c = canvasCell(ev); if (!c) return;
+    /* 指のときは既定でスクロールを優先。塗るのは click（＝スクロールでないタップ）で行う */
+    if (ev.pointerType === 'touch' && !$('touchPaint').checked) return;
+    if (tool() === 'pick' || ev.altKey) { pickAt(c); return; }
+    pushUndo();
+    painting = true;
+    try { $('canvas').setPointerCapture(ev.pointerId); } catch (e) { /* 無視 */ }
+    paint(c);
+    ev.preventDefault();
+  }
+
+  function onCanvasUp() {
+    if (painting) { painting = false; recount(); renderPalette(); autosave(); }
+  }
+
+  /* スクロールにならなかったタップだけが click として届く */
+  function onCanvasClick(ev) {
+    if (!S.idx) return;
+    if (lastPointerType !== 'touch' || $('touchPaint').checked) return;
+    var c = canvasCell(ev); if (!c) return;
+    if (tool() === 'pick') { pickAt(c); return; }
+    pushUndo(); paint(c); autosave();
+  }
+
+  function onCanvasMove(ev) {
+    if (!S.idx) return;
+    if (ev.pointerType === 'touch' && !painting) return;
+    var c = canvasCell(ev);
+    if (c) {
+      var p = S.palette[S.idx[c.i]];
+      $('status').textContent = '列 ' + (c.x + 1) + ' / 行 ' + (c.y + 1) +
+        '　現在: ' + (p ? p.symbol + ' ' + p.code : '-') +
+        '　実寸位置 ' + fmt(c.x * S.bead) + ', ' + fmt(c.y * S.bead) + ' mm';
+    }
+    if (painting && c) paint(c);
+  }
+  function paint(c) {
+    if (S.idx[c.i] === S.sel) return;
+    S.idx[c.i] = S.sel;
+    S.edited = true;
+    draw();
+    if (!painting) { recount(); renderPalette(); }
+  }
+  function pushUndo() {
+    S.undo.push(Int16Array.from(S.idx));
+    if (S.undo.length > 40) S.undo.shift();
+  }
+
+  /* ================= パレット UI ================= */
+
+  function setSelected(i) {
+    S.sel = i;
+    var rows = $('paletteList').children;
+    for (var k = 0; k < rows.length; k++) rows[k].classList.toggle('sel', k === i);
+  }
+
+  function renderPalette() {
+    var list = $('paletteList');
+    list.innerHTML = '';
+    var total = S.idx ? S.idx.length : 0;
+    S.palette.forEach(function (p, i) {
+      var row = document.createElement('div');
+      row.className = 'prow' + (i === S.sel ? ' sel' : '');
+      row.tabIndex = 0;
+
+      var sw = document.createElement('button');
+      sw.type = 'button'; sw.className = 'sw'; sw.style.background = p.hex;
+      sw.title = '色とカラーコードを変更';
+      sw.addEventListener('click', function (e) { e.stopPropagation(); openModal(i); });
+
+      var sym = document.createElement('div');
+      sym.className = 'sym'; sym.textContent = p.symbol || '';
+
+      var meta = document.createElement('div');
+      meta.className = 'pmeta';
+      var code = document.createElement('input');
+      code.className = 'pcode'; code.value = p.code; code.title = 'カラーコードを直接入力できます';
+      code.addEventListener('change', function () {
+        p.code = code.value.trim() || p.code;
+        var hit = findDmc(p.code);
+        if (hit) { p.hex = hit.hex; p.name = hit.name; }
+        renderPalette(); draw(); autosave();
+      });
+      var nm = document.createElement('div');
+      nm.className = 'pname';
+      nm.textContent = (p.name || '') + '  ' + p.hex;
+      meta.appendChild(code); meta.appendChild(nm);
+
+      var right = document.createElement('div');
+      var cnt = document.createElement('div');
+      cnt.className = 'pcount';
+      var c = S.counts[i] || 0;
+      cnt.textContent = comma(c) + '粒' + (total ? '  ' + (c * 100 / total).toFixed(1) + '%' : '');
+      var del = document.createElement('button');
+      del.type = 'button'; del.className = 'pdel'; del.textContent = '✕'; del.title = 'この色を削除（近い色へ置換）';
+      del.addEventListener('click', function (e) { e.stopPropagation(); removeColor(i); });
+      right.appendChild(cnt); right.appendChild(del);
+      right.style.display = 'flex';
+      right.style.alignItems = 'center';
+      right.style.gap = '4px';
+
+      row.appendChild(sw); row.appendChild(sym); row.appendChild(meta); row.appendChild(right);
+      row.addEventListener('click', function () { setSelected(i); });
+      list.appendChild(row);
+    });
+  }
+
+  function findDmc(code) {
+    var q = String(code).replace(/^dmc\s*/i, '').trim().toUpperCase();
+    for (var i = 0; i < DMC_COLORS.length; i++) {
+      if (DMC_COLORS[i].code.toUpperCase() === q) return DMC_COLORS[i];
+    }
+    return null;
+  }
+
+  function removeColor(i) {
+    if (S.palette.length <= 2) { status('色は2色以上必要です'); return; }
+    if (!confirm('「' + S.palette[i].code + '」を削除して、近い色に置き換えます。よろしいですか？')) return;
+    pushUndo();
+    var labs = S.palette.map(function (p) { return Color.hexToLab(p.hex); });
+    var best = -1, bd = Infinity;
+    S.palette.forEach(function (p, j) {
+      if (j === i) return;
+      var d = Color.labDist2(labs[i], labs[j]);
+      if (d < bd) { bd = d; best = j; }
+    });
+    for (var k = 0; k < S.idx.length; k++) {
+      if (S.idx[k] === i) S.idx[k] = best;
+      if (S.idx[k] > i) S.idx[k]--;
+    }
+    S.palette.splice(i, 1);
+    if (S.sel >= S.palette.length) S.sel = S.palette.length - 1;
+    assignSymbols(); recount(); renderPalette(); draw(); autosave();
+    status('1色削除しました（残り ' + S.palette.length + '色）');
+  }
+
+  function addColor() {
+    S.palette.push({ code: 'NEW' + (S.palette.length + 1), name: 'custom', hex: '#888888' });
+    assignSymbols(); recount(); renderPalette();
+    openModal(S.palette.length - 1);
+  }
+
+  /* ================= 色選択モーダル ================= */
+
+  function openModal(i) {
+    S.editingIndex = i;
+    var p = S.palette[i];
+    $('modalTitle').textContent = '色 ' + (i + 1) + ' を編集';
+    $('mCode').value = p.code;
+    $('mHex').value = Color.normalizeHex(p.hex) || '#000000';
+    $('mHexText').value = Color.normalizeHex(p.hex) || '#000000';
+    $('mSearch').value = '';
+    renderDmcList('');
+    $('modal').hidden = false;
+    $('mCode').focus();
+  }
+
+  function renderDmcList(query) {
+    var box = $('dmcList');
+    box.innerHTML = '';
+    var q = query.trim().toUpperCase();
+    var items = DMC_COLORS;
+    if (q) {
+      items = DMC_COLORS.filter(function (c) {
+        return c.code.toUpperCase().indexOf(q) >= 0 || (c.name || '').toUpperCase().indexOf(q) >= 0;
+      });
+    } else if (S.editingIndex >= 0) {
+      var lab = Color.hexToLab($('mHex').value);
+      items = DMC_COLORS.slice().sort(function (a, b) {
+        return Color.labDist2(lab, Color.hexToLab(a.hex)) - Color.labDist2(lab, Color.hexToLab(b.hex));
+      }).slice(0, 80);
+    }
+    items.slice(0, 400).forEach(function (c) {
+      var el = document.createElement('div');
+      el.className = 'dmc-item';
+      el.innerHTML = '<i style="background:' + c.hex + '"></i><span>' + c.code + '</span>';
+      el.title = c.code + ' ' + (c.name || '') + ' ' + c.hex;
+      el.addEventListener('click', function () {
+        $('mCode').value = c.code;
+        $('mHex').value = c.hex;
+        $('mHexText').value = c.hex;
+        box.querySelectorAll('.dmc-item').forEach(function (n) { n.classList.remove('on'); });
+        el.classList.add('on');
+        el.dataset.name = c.name;
+      });
+      box.appendChild(el);
+    });
+    if (!items.length) box.innerHTML = '<p class="hint">該当する色がありません</p>';
+  }
+
+  function applyModal() {
+    var i = S.editingIndex;
+    if (i < 0 || !S.palette[i]) { closeModal(); return; }
+    var hex = Color.normalizeHex($('mHexText').value) || Color.normalizeHex($('mHex').value);
+    var code = $('mCode').value.trim() || S.palette[i].code;
+    var hit = findDmc(code);
+    S.palette[i].code = code;
+    S.palette[i].hex = hex || S.palette[i].hex;
+    S.palette[i].name = hit && hit.hex === S.palette[i].hex ? hit.name : (hit ? hit.name : 'custom');
+    closeModal(); renderPalette(); draw(); autosave();
+    status('色 ' + code + ' を更新しました');
+  }
+
+  function closeModal() { $('modal').hidden = true; S.editingIndex = -1; }
+
+  /* ================= CSV ================= */
+
+  function exportCsv() {
+    var lines = ['code,hex,name,symbol,count'];
+    S.palette.forEach(function (p, i) {
+      lines.push([p.code, p.hex, '"' + (p.name || '').replace(/"/g, '""') + '"',
+                  p.symbol, S.counts[i] || 0].join(','));
+    });
+    saveFile(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv' }),
+      fileBase() + '_palette.csv');
+  }
+
+  function importCsv(text) {
+    var rows = text.replace(/^﻿/, '').split(/\r?\n/).filter(function (l) { return l.trim(); });
+    var out = [];
+    rows.forEach(function (line, n) {
+      var cells = line.split(',');
+      if (n === 0 && /code/i.test(cells[0])) return;
+      var code = (cells[0] || '').trim().replace(/^"|"$/g, '');
+      if (!code) return;
+      var hex = Color.normalizeHex((cells[1] || '').trim().replace(/^"|"$/g, ''));
+      var hit = findDmc(code);
+      if (!hex && hit) hex = hit.hex;
+      if (!hex) return;
+      out.push({ code: code, hex: hex, name: (cells[2] || (hit ? hit.name : '')).replace(/^"|"$/g, '').trim() });
+    });
+    if (out.length < 2) { status('CSVを読み取れませんでした（code,hex の2列以上が必要です）'); return; }
+    S.palette = out;
+    assignSymbols();
+    if (S.idx && S.img) {
+      $('stock').value = 'lock';
+      generate();
+    } else {
+      recount(); renderPalette();
+    }
+    status('CSVから ' + out.length + '色を読み込みました');
+  }
+
+  /* ================= 書き出し ================= */
+
+  function fileBase() {
+    var t = ($('title').value || 'diamond-art').trim();
+    return t.replace(/[\\/:*?"<>|]/g, '_').slice(0, 40) || 'diamond-art';
+  }
+
+  /* 保存処理。claude.ai の Artifact として開かれているときは
+     downloads capability を、それ以外は通常のダウンロードを使う。 */
+  var downloadsCap = null;
+  function saver() {
+    if (!downloadsCap) {
+      downloadsCap = (window.claude && typeof window.claude.use === 'function')
+        ? window.claude.use('downloads').catch(function () { return null; })
+        : Promise.resolve(null);
+    }
+    return downloadsCap;
+  }
+
+  function saveFile(blob, name) {
+    return saver().then(function (dl) {
+      if (dl) {
+        return dl.save({ filename: name, data: blob }).then(function () {
+          status(name + ' を保存しました');
+        }, function (err) {
+          var code = err && err.code;
+          status(code === 'declined' ? '保存をキャンセルしました'
+               : code === 'too_large' ? 'ファイルが大きすぎて保存できません'
+               : '保存できませんでした（' + (code || 'error') + '）');
+        });
+      }
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    });
+  }
+
+  function exportPng() {
+    if (!S.idx) { status('先に図案を作ってください'); return; }
+    var cv = Render.toCanvas({
+      cols: S.cols, rows: S.rows, idx: S.idx, palette: S.palette,
+      cell: 14, mode: viewMode(), shape: $('shape').value,
+      showGrid: $('showGrid').checked, gridEvery: 10
+    });
+    cv.toBlob(function (b) { saveFile(b, fileBase() + '.png'); }, 'image/png');
+  }
+
+  /* 日本語などを含む文字列を画像化して PDF に貼るためのヘルパー */
+  function textImage(text, pxHeight) {
+    var pad = 6, fontPx = pxHeight;
+    var cv = document.createElement('canvas');
+    var ctx = cv.getContext('2d');
+    ctx.font = '600 ' + fontPx + 'px "Hiragino Sans","Noto Sans JP","Yu Gothic UI",sans-serif';
+    var w = Math.ceil(ctx.measureText(text).width) + pad * 2;
+    cv.width = Math.max(2, w); cv.height = Math.ceil(fontPx * 1.5);
+    ctx = cv.getContext('2d');
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.font = '600 ' + fontPx + 'px "Hiragino Sans","Noto Sans JP","Yu Gothic UI",sans-serif';
+    ctx.fillStyle = '#111111'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, pad, cv.height / 2);
+    return { url: cv.toDataURL('image/jpeg', 0.92), ratio: cv.width / cv.height };
+  }
+
+  function exportPdf() {
+    if (!S.idx) { status('先に図案を作ってください'); return; }
+    status('PDFを生成しています…');
+    setTimeout(function () {
+      try { buildPdf(); status('PDFを書き出しました'); }
+      catch (e) { console.error(e); status('PDF生成でエラー: ' + e.message); }
+    }, 30);
+  }
+
+  function buildPdf() {
+    var d = dims();
+    var doc = new MiniPDF.Doc();
+    var title = ($('title').value || '').trim();
+    var round = $('shape').value === 'round';
+    var perBag = Math.max(1, +$('perBag').value || 200);
+
+    /* ---- 1) 実寸チャート ---- */
+    if ($('pdfActual').checked) {
+      var pg = doc.addPage(d.paperW, d.paperH);
+      pg.rect(0, 0, d.paperW, d.paperH, '#FFFFFF');
+      var fill = $('pdfActualFill').checked;
+      var syms = $('pdfActualSym').checked;
+      var b = d.bead;
+      var symSize = b * MiniPDF.MM * 0.60;
+
+      if (fill) {
+        for (var y = 0; y < S.rows; y++) {
+          for (var x = 0; x < S.cols; x++) {
+            var p = S.palette[S.idx[y * S.cols + x]];
+            if (!p) continue;
+            var cx = d.ox + x * b, cy = d.oy + y * b;
+            var t = Color.tint(p.hex, 0.55);
+            if (round) pg.circle(cx + b / 2, cy + b / 2, b * 0.46, t);
+            else pg.rect(cx, cy, b, b, t);
+          }
+        }
+      }
+      /* 罫線 */
+      for (var gx = 0; gx <= S.cols; gx++) {
+        var major = gx % 10 === 0 || gx === S.cols;
+        pg.line(d.ox + gx * b, d.oy, d.ox + gx * b, d.oy + d.artH,
+          major ? '#8A939C' : '#D3D8DD', major ? 0.12 : 0.05);
+      }
+      for (var gy = 0; gy <= S.rows; gy++) {
+        var majorY = gy % 10 === 0 || gy === S.rows;
+        pg.line(d.ox, d.oy + gy * b, d.ox + d.artW, d.oy + gy * b,
+          majorY ? '#8A939C' : '#D3D8DD', majorY ? 0.12 : 0.05);
+      }
+      if (syms) {
+        for (var sy = 0; sy < S.rows; sy++) {
+          for (var sx = 0; sx < S.cols; sx++) {
+            var q = S.palette[S.idx[sy * S.cols + sx]];
+            if (!q) continue;
+            pg.glyph(q.symbol, d.ox + sx * b + b / 2, d.oy + sy * b + b / 2, symSize, '#232A31');
+          }
+        }
+      }
+      pg.rect(d.ox, d.oy, d.artW, d.artH, null, '#3A424A', 0.25);
+      /* トンボ（余白がある場合のみ） */
+      if (d.ox > 2.5 && d.oy > 2.5) {
+        [[d.ox, d.oy], [d.ox + d.artW, d.oy], [d.ox, d.oy + d.artH], [d.ox + d.artW, d.oy + d.artH]]
+          .forEach(function (c) {
+            pg.line(c[0] - 2, c[1], c[0] - 0.6, c[1], '#000000', 0.12);
+            pg.line(c[0] + 0.6, c[1], c[0] + 2, c[1], '#000000', 0.12);
+            pg.line(c[0], c[1] - 2, c[0], c[1] - 0.6, '#000000', 0.12);
+            pg.line(c[0], c[1] + 0.6, c[0], c[1] + 2, '#000000', 0.12);
+          });
+      }
+      if (d.oy >= 3.2) {
+        pg.text(fmt(d.artW) + ' x ' + fmt(d.artH) + ' mm  /  ' + S.cols + ' x ' + S.rows +
+          ' = ' + comma(S.cols * S.rows) + ' beads  /  ' + d.bead + ' mm ' +
+          (round ? 'round' : 'square') + '  /  print at 100%',
+          d.paperW / 2, d.paperH - 1.2, 4.2, { align: 'center', color: '#8A939C' });
+      }
+    }
+
+    /* ---- 2) 拡大チャート（A4） ---- */
+    if ($('pdfBig').checked) {
+      var cell = Math.max(3, +$('bigCell').value || 6);
+      var PW = 210, PH = 297, M = 12, gut = 7, headH = 12;
+      var capC = Math.max(1, Math.floor((PW - 2 * M - gut) / cell));
+      var capR = Math.max(1, Math.floor((PH - 2 * M - gut - headH) / cell));
+      var tx = Math.ceil(S.cols / capC), ty = Math.ceil(S.rows / capR);
+      /* 端に細長いページが出ないよう、タイルを均等に割る */
+      var cpp = Math.ceil(S.cols / tx), rpp = Math.ceil(S.rows / ty);
+      var tImg = title ? textImage(title, 40) : null;
+      var page = 0;
+      for (var ti = 0; ti < ty; ti++) {
+        for (var tj = 0; tj < tx; tj++) {
+          page++;
+          var c0 = tj * cpp, c1 = Math.min(S.cols, c0 + cpp);
+          var r0 = ti * rpp, r1 = Math.min(S.rows, r0 + rpp);
+          var bp = doc.addPage(PW, PH);
+          bp.rect(0, 0, PW, PH, '#FFFFFF');
+          if (tImg) bp.image(tImg.url, M, M - 6, 5 * tImg.ratio, 5);
+          bp.text('Enlarged chart  ' + page + ' / ' + (tx * ty) +
+            '   columns ' + (c0 + 1) + '-' + c1 + ' , rows ' + (r0 + 1) + '-' + r1 +
+            '   (1 cell = ' + cell + ' mm on this sheet, actual bead ' + d.bead + ' mm)',
+            M, M + 2, 8, { bold: true, color: '#232A31' });
+
+          var gx0 = M + gut, gy0 = M + headH;
+          var nc = c1 - c0, nr = r1 - r0;
+          for (var yy = 0; yy < nr; yy++) {
+            for (var xx = 0; xx < nc; xx++) {
+              var pp = S.palette[S.idx[(r0 + yy) * S.cols + (c0 + xx)]];
+              if (!pp) continue;
+              var px = gx0 + xx * cell, py = gy0 + yy * cell;
+              bp.rect(px, py, cell, cell, Color.tint(pp.hex, 0.5));
+              bp.glyph(pp.symbol, px + cell / 2, py + cell / 2, cell * MiniPDF.MM * 0.5, '#1A1F25');
+            }
+          }
+          for (var lx = 0; lx <= nc; lx++) {
+            var mj = (c0 + lx) % 10 === 0 || lx === nc;
+            bp.line(gx0 + lx * cell, gy0, gx0 + lx * cell, gy0 + nr * cell,
+              mj ? '#39424C' : '#AEB6BE', mj ? 0.3 : 0.1);
+            if ((c0 + lx) % 5 === 0 && lx < nc) {
+              bp.text(String(c0 + lx + 1), gx0 + lx * cell + cell / 2, gy0 - 1.2, 5,
+                { align: 'center', color: '#6B7580' });
+            }
+          }
+          for (var ly = 0; ly <= nr; ly++) {
+            var mjy = (r0 + ly) % 10 === 0 || ly === nr;
+            bp.line(gx0, gy0 + ly * cell, gx0 + nc * cell, gy0 + ly * cell,
+              mjy ? '#39424C' : '#AEB6BE', mjy ? 0.3 : 0.1);
+            if ((r0 + ly) % 5 === 0 && ly < nr) {
+              bp.text(String(r0 + ly + 1), gx0 - 1.2, gy0 + ly * cell + cell / 2 + 1.4, 5,
+                { align: 'right', color: '#6B7580' });
+            }
+          }
+        }
+      }
+    }
+
+    /* ---- 3) 色一覧 ---- */
+    if ($('pdfLegend').checked) {
+      var LW = 210, LH = 297, LM = 14;
+      var rowsPerCol = 40, rowH = 5.4;
+      var order = S.palette.map(function (p, i) { return { p: p, c: S.counts[i] || 0 }; })
+        .sort(function (a, b) { return b.c - a.c; });
+      var total = S.cols * S.rows;
+
+      var prev = Render.toCanvas({
+        cols: S.cols, rows: S.rows, idx: S.idx, palette: S.palette,
+        cell: 6, mode: 'color', shape: $('shape').value, showGrid: false
+      });
+      var prevUrl = prev.toDataURL('image/jpeg', 0.9);
+      var tImg2 = title ? textImage(title, 44) : null;
+
+      var lp = doc.addPage(LW, LH);
+      lp.rect(0, 0, LW, LH, '#FFFFFF');
+      var y0 = LM;
+      if (tImg2) { lp.image(tImg2.url, LM, y0, 7 * tImg2.ratio, 7); y0 += 9; }
+      lp.text('Diamond painting - color list', LM, y0 + 3, 11, { bold: true });
+      y0 += 6;
+
+      var pw2 = 52, ph2 = 52 * (S.rows / S.cols);
+      if (ph2 > 62) { ph2 = 62; pw2 = 62 * (S.cols / S.rows); }
+      lp.image(prevUrl, LM, y0 + 2, pw2, ph2);
+      lp.rect(LM, y0 + 2, pw2, ph2, null, '#AEB6BE', 0.2);
+
+      var ix = LM + pw2 + 8, iy = y0 + 7;
+      [
+        'Finished size : ' + fmt(d.artW) + ' x ' + fmt(d.artH) + ' mm',
+        'Paper size    : ' + fmt(d.paperW, 0) + ' x ' + fmt(d.paperH, 0) + ' mm',
+        'Grid          : ' + S.cols + ' x ' + S.rows + ' cells',
+        'Bead          : ' + d.bead + ' mm ' + (round ? 'round' : 'square'),
+        'Total beads   : ' + comma(total),
+        'Colors        : ' + S.palette.length,
+        'Beads per bag : ' + perBag
+      ].forEach(function (line, n) {
+        lp.text(line, ix, iy + n * 5.2, 8.4, { color: '#232A31' });
+      });
+
+      var startY = y0 + ph2 + 10;
+      var colW = (LW - 2 * LM - 8) / 2;
+      var cursor = { page: lp, x: LM, y: startY, col: 0, n: 0 };
+
+      function header(pg2, x, y) {
+        var c = '#6B7580';
+        pg2.text('sym', x + 7.6, y, 7.2, { bold: true, color: c });
+        pg2.text('code', x + 13, y, 7.2, { bold: true, color: c });
+        pg2.text('beads', x + colW - 30, y, 7.2, { bold: true, color: c, align: 'right' });
+        pg2.text('bags', x + colW - 12, y, 7.2, { bold: true, color: c, align: 'right' });
+        pg2.text('hex', x + colW - 8, y, 7.2, { bold: true, color: c });
+        pg2.line(x, y + 1.4, x + colW - 4, y + 1.4, '#AEB6BE', 0.15);
+      }
+      header(cursor.page, cursor.x, cursor.y);
+      cursor.y += 4.6;
+
+      order.forEach(function (o) {
+        if (cursor.y + rowH > LH - LM) {
+          if (cursor.col === 0) {
+            cursor.col = 1;
+            cursor.x = LM + colW + 8;
+            cursor.y = startY;
+          } else {
+            cursor.page = doc.addPage(LW, LH);
+            cursor.page.rect(0, 0, LW, LH, '#FFFFFF');
+            cursor.col = 0; cursor.x = LM; cursor.y = LM + 4;
+          }
+          header(cursor.page, cursor.x, cursor.y);
+          cursor.y += 4.6;
+        }
+        var pg3 = cursor.page, X = cursor.x, Y = cursor.y;
+        pg3.rect(X, Y, 4.4, 4.4, o.p.hex, '#8A939C', 0.12);
+        pg3.text(o.p.symbol, X + 7.6, Y + 3.4, 8, { bold: true });
+        pg3.text(String(o.p.code), X + 13, Y + 3.4, 8);
+        pg3.text(comma(o.c), X + colW - 30, Y + 3.4, 8, { align: 'right' });
+        pg3.text(String(Math.ceil(o.c * 1.1 / perBag)), X + colW - 12, Y + 3.4, 8, { align: 'right' });
+        pg3.text(o.p.hex, X + colW - 8, Y + 3.4, 6, { color: '#9AA3AC' });
+        cursor.y += rowH;
+      });
+
+      cursor.page.text('bags = ceil(beads x 1.1 / ' + perBag + ')  incl. 10% spare',
+        LM, LH - LM + 4, 6.6, { color: '#9AA3AC' });
+    }
+
+    saveFile(doc.build(), fileBase() + '.pdf');
+  }
+
+  /* ================= 保存・復元 ================= */
+
+  function projectData(includeImage) {
+    return {
+      v: 1,
+      title: $('title').value,
+      settings: collectSettings(),
+      cols: S.cols, rows: S.rows, bead: S.bead,
+      palette: S.palette,
+      idx: S.idx ? Array.from(S.idx) : null,
+      src: includeImage ? S.srcUrl : null
+    };
+  }
+
+  var SETTING_IDS = ['fit', 'zoom', 'offX', 'offY', 'bg', 'preset', 'paperW', 'paperH',
+    'margin', 'shape', 'beadPreset', 'bead', 'colors', 'stock', 'dither', 'despeckle',
+    'brightness', 'contrast', 'saturation', 'gamma', 'title', 'pdfActual', 'pdfActualFill',
+    'pdfActualSym', 'pdfBig', 'bigCell', 'pdfLegend', 'perBag', 'showGrid', 'viewZoom'];
+
+  function collectSettings() {
+    var o = {};
+    SETTING_IDS.forEach(function (id) {
+      var el = $(id); if (!el) return;
+      o[id] = el.type === 'checkbox' ? el.checked : el.value;
+    });
+    return o;
+  }
+
+  function applySettings(o) {
+    if (!o) return;
+    SETTING_IDS.forEach(function (id) {
+      if (!(id in o)) return;
+      var el = $(id); if (!el) return;
+      if (el.type === 'checkbox') el.checked = !!o[id]; else el.value = o[id];
+    });
+    syncOutputs();
+    $('beadCustomRow').hidden = $('beadPreset').value !== 'custom';
+  }
+
+  function saveProject() {
+    saveFile(new Blob([JSON.stringify(projectData(true))], { type: 'application/json' }),
+      fileBase() + '.json');
+    status('プロジェクトを保存しました');
+  }
+
+  function loadProject(text) {
+    var o;
+    try { o = JSON.parse(text); } catch (e) { status('ファイルを読み込めませんでした'); return; }
+    applySettings(o.settings);
+    S.palette = o.palette || [];
+    S.cols = o.cols; S.rows = o.rows; S.bead = o.bead || beadSize();
+    S.idx = o.idx ? Int16Array.from(o.idx) : null;
+    S.edited = true;
+    assignSymbols(); recount(); renderPalette(); updateCalc();
+    if (o.src) setImage(o.src, false, true);
+    draw();
+    status('プロジェクトを読み込みました（' + S.palette.length + '色 / ' +
+      comma(S.cols * S.rows) + '粒）');
+  }
+
+  function autosave() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(projectData(true)));
+    } catch (e) {
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(projectData(false))); }
+      catch (e2) { /* 容量オーバーは黙って諦める */ }
+    }
+  }
+
+  function restore() {
+    var raw = null;
+    try { raw = localStorage.getItem(STORE_KEY); } catch (e) { return false; }
+    if (!raw) return false;
+    try { loadProject(raw); return true; } catch (e) { return false; }
+  }
+
+  /* ================= イベント ================= */
+
+  function status(msg) { $('status').textContent = msg; }
+
+  function isNarrow() { return window.matchMedia('(max-width:1180px)').matches; }
+
+  function showPanel(name) {
+    document.querySelectorAll('.layout > .panel').forEach(function (p) {
+      p.classList.toggle('active', p.dataset.panel === name);
+    });
+    $('tabbar').querySelectorAll('button').forEach(function (b) {
+      b.classList.toggle('on', b.dataset.p === name);
+    });
+    if (name === 'preview') draw();
+    window.scrollTo(0, 0);
+  }
+
+  function syncOutputs() {
+    $('zoomOut').textContent = ((+$('zoom').value) / 100).toFixed(2) + '×';
+    $('offXOut').textContent = $('offX').value;
+    $('offYOut').textContent = $('offY').value;
+    $('brightnessOut').textContent = $('brightness').value;
+    $('contrastOut').textContent = $('contrast').value;
+    $('saturationOut').textContent = $('saturation').value;
+    $('gammaOut').textContent = $('gamma').value;
+  }
+
+  var regenTimer = null;
+  function scheduleRegen() {
+    updateCalc();
+    if (!S.img) return;
+    if (S.edited) { status('設定を変えました。手作業の修正を残したまま作り直す場合は「図案を作る」を押してください'); return; }
+    clearTimeout(regenTimer);
+    regenTimer = setTimeout(generate, 260);
+  }
+
+  function bind() {
+    $('btnPick').addEventListener('click', function () { $('file').click(); });
+    $('file').addEventListener('change', function (e) { loadImageFile(e.target.files[0]); });
+
+    var drop = $('drop');
+    ['dragenter', 'dragover'].forEach(function (t) {
+      drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add('over'); });
+    });
+    ['dragleave', 'drop'].forEach(function (t) {
+      drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove('over'); });
+    });
+    drop.addEventListener('drop', function (e) {
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) loadImageFile(e.dataTransfer.files[0]);
+    });
+
+    $('preset').addEventListener('change', function () {
+      var v = $('preset').value;
+      if (v !== 'custom') {
+        var m = v.split('x');
+        $('paperW').value = m[0]; $('paperH').value = m[1];
+      }
+      scheduleRegen();
+    });
+    $('beadPreset').addEventListener('change', function () {
+      $('beadCustomRow').hidden = $('beadPreset').value !== 'custom';
+      if ($('beadPreset').value !== 'custom') $('bead').value = $('beadPreset').value;
+      if ($('beadPreset').value === '2.8') $('shape').value = 'round';
+      if ($('beadPreset').value === '2.5') $('shape').value = 'square';
+      scheduleRegen();
+    });
+
+    ['paperW', 'paperH', 'margin', 'bead', 'colors', 'stock', 'fit', 'bg',
+     'dither', 'despeckle', 'zoom', 'offX', 'offY',
+     'brightness', 'contrast', 'saturation', 'gamma'].forEach(function (id) {
+      $(id).addEventListener('input', function () { syncOutputs(); scheduleRegen(); });
+      $(id).addEventListener('change', function () { syncOutputs(); scheduleRegen(); });
+    });
+    $('perBag').addEventListener('input', updateCalc);
+    $('shape').addEventListener('change', function () { draw(); updateCalc(); });
+
+    $('btnGenerate').addEventListener('click', generate);
+
+    $('viewMode').addEventListener('click', function (e) {
+      if (e.target.tagName !== 'BUTTON') return;
+      this.querySelectorAll('button').forEach(function (b) { b.classList.remove('on'); });
+      e.target.classList.add('on'); draw();
+    });
+    $('tool').addEventListener('click', function (e) {
+      if (e.target.tagName !== 'BUTTON') return;
+      this.querySelectorAll('button').forEach(function (b) { b.classList.remove('on'); });
+      e.target.classList.add('on');
+    });
+    $('showGrid').addEventListener('change', draw);
+    $('btnFit').addEventListener('click', function () { fitZoom(false); });
+    $('viewZoom').addEventListener('input', draw);
+    $('btnUndo').addEventListener('click', function () {
+      if (!S.undo.length) { status('元に戻せる操作がありません'); return; }
+      S.idx = S.undo.pop();
+      recount(); renderPalette(); draw(); autosave();
+      status('元に戻しました');
+    });
+
+    var cv = $('canvas');
+    cv.addEventListener('pointerdown', onCanvasDown);
+    cv.addEventListener('click', onCanvasClick);
+    window.addEventListener('pointermove', onCanvasMove);
+    window.addEventListener('pointerup', onCanvasUp);
+    window.addEventListener('pointercancel', onCanvasUp);
+    cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    $('touchPaint').addEventListener('change', function () {
+      cv.classList.toggle('touch-paint', this.checked);
+      status(this.checked ? '指でなぞって塗るモードです（キャンバス上ではスクロールしません）'
+                          : 'タップで1粒ずつ塗ります。キャンバス上を指で動かすとスクロールします');
+    });
+
+    $('tabbar').addEventListener('click', function (e) {
+      if (e.target.tagName === 'BUTTON') showPanel(e.target.dataset.p);
+    });
+
+    $('btnAdd').addEventListener('click', addColor);
+    $('btnCsvOut').addEventListener('click', exportCsv);
+    $('btnCsvIn').addEventListener('click', function () { $('csvFile').click(); });
+    $('csvFile').addEventListener('change', function (e) {
+      var f = e.target.files[0]; if (!f) return;
+      var fr = new FileReader();
+      fr.onload = function () { importCsv(String(fr.result)); };
+      fr.readAsText(f);
+      e.target.value = '';
+    });
+
+    $('modalClose').addEventListener('click', closeModal);
+    $('mApply').addEventListener('click', applyModal);
+    $('modal').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
+    $('mHex').addEventListener('input', function () { $('mHexText').value = $('mHex').value.toUpperCase(); });
+    $('mHexText').addEventListener('change', function () {
+      var h = Color.normalizeHex($('mHexText').value);
+      if (h) { $('mHex').value = h; $('mHexText').value = h; }
+    });
+    $('mCode').addEventListener('change', function () {
+      var hit = findDmc($('mCode').value);
+      if (hit) { $('mHex').value = hit.hex; $('mHexText').value = hit.hex; }
+    });
+    $('mSearch').addEventListener('input', function () { renderDmcList(this.value); });
+
+    $('btnPng').addEventListener('click', exportPng);
+    $('btnPdf').addEventListener('click', exportPdf);
+    $('btnSave').addEventListener('click', saveProject);
+    $('btnLoad').addEventListener('click', function () { $('projFile').click(); });
+    $('projFile').addEventListener('change', function (e) {
+      var f = e.target.files[0]; if (!f) return;
+      var fr = new FileReader();
+      fr.onload = function () { loadProject(String(fr.result)); };
+      fr.readAsText(f);
+      e.target.value = '';
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !$('modal').hidden) closeModal();
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && S.undo.length) {
+        e.preventDefault(); $('btnUndo').click();
+      }
+    });
+    window.addEventListener('beforeunload', autosave);
+  }
+
+  if (navigator.maxTouchPoints > 0 || window.matchMedia('(hover:none)').matches) {
+    document.body.classList.add('is-touch');
+  }
+  bind();
+  syncOutputs();
+  updateCalc();
+  if (!restore()) status('画像を選んで「図案を作る」を押してください');
+})();
+
+</script>

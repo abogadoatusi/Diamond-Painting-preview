@@ -1,4 +1,7 @@
+/* ビーズの色を正しく見比べられるよう、UI は明るい面に固定する。
+   ネイティブ部品（チェックボックス・スライダー・色ピッカー）も明るい側に揃える。 */
 :root{
+  color-scheme:light;
   --bg:#f5f6f8; --panel:#ffffff; --line:#dfe3e8; --ink:#1d2329; --muted:#6b7580;
   --accent:#2f6fed; --accent-ink:#ffffff; --shadow:0 1px 2px rgba(20,30,45,.08),0 6px 18px rgba(20,30,45,.06);
 }
@@ -152,3 +155,7 @@ h1 .t-short{display:none}
 #canvas.touch-paint{touch-action:none}
 .touch-only{display:none}
 body.is-touch .touch-only{display:flex}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition-duration:.01ms !important;animation-duration:.01ms !important}
+}

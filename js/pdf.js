@@ -31,6 +31,9 @@ var MiniPDF = (function () {
     return num(c[0] / 255) + ' ' + num(c[1] / 255) + ' ' + num(c[2] / 255);
   }
 
+  /* PDF の標準フォント Helvetica を、同等の指標を持つ画面フォントで実測する */
+  var GLYPH_FONT = 'Helvetica, Arial, "Liberation Sans", sans-serif';
+
   function Page(doc, wmm, hmm) {
     this.doc = doc; this.w = wmm; this.h = hmm; this.ops = []; this.images = [];
   }
@@ -72,7 +75,8 @@ var MiniPDF = (function () {
     return this;
   };
 
-  /* y はベースライン位置(mm)。align: left|center|right */
+  /* y はベースライン位置(mm)。align: left|center|right。
+     opt.middle = true なら y を「文字の高さの中心」として扱う。 */
   Page.prototype.text = function (str, x, y, size, opt) {
     opt = opt || {};
     var bold = !!opt.bold;
@@ -80,14 +84,16 @@ var MiniPDF = (function () {
     var tx = x;
     if (opt.align === 'center') tx = x - w / 2;
     else if (opt.align === 'right') tx = x - w;
+    if (opt.middle) y += Glyph.center(String(str), GLYPH_FONT).ky * size / MM;
     this.ops.push('BT ' + rgbOf(opt.color || '#000') + ' rg /' + (bold ? 'F2' : 'F1') + ' ' +
       num(size) + ' Tf ' + num(tx * MM) + ' ' + this.Y(y) + ' Td (' + esc(str) + ') Tj ET');
     return this;
   };
 
-  /* 中央そろえで「セル内」に収める記号描画 */
+  /* 字形の中心を (cx, cy) に合わせて記号を描く */
   Page.prototype.glyph = function (ch, cx, cy, size, color) {
-    this.text(ch, cx, cy + size * 0.36 / MM, size, { align: 'center', color: color });
+    var k = Glyph.center(ch, GLYPH_FONT);
+    this.text(ch, cx - k.kx * size / MM, cy + k.ky * size / MM, size, { color: color });
     return this;
   };
 

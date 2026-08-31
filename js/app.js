@@ -651,8 +651,8 @@
             bp.line(gx0, gy0 + ly * cell, gx0 + nc * cell, gy0 + ly * cell,
               mjy ? '#39424C' : '#AEB6BE', mjy ? 0.3 : 0.1);
             if ((r0 + ly) % 5 === 0 && ly < nr) {
-              bp.text(String(r0 + ly + 1), gx0 - 1.2, gy0 + ly * cell + cell / 2 + 1.4, 5,
-                { align: 'right', color: '#6B7580' });
+              bp.text(String(r0 + ly + 1), gx0 - 1.2, gy0 + ly * cell + cell / 2, 5,
+                { align: 'right', middle: true, color: '#6B7580' });
             }
           }
         }
@@ -705,8 +705,8 @@
 
       function header(pg2, x, y) {
         var c = '#6B7580';
-        pg2.text('sym', x + 7.6, y, 7.2, { bold: true, color: c });
-        pg2.text('code', x + 13, y, 7.2, { bold: true, color: c });
+        pg2.text('sym', x + 9, y, 7.2, { bold: true, color: c, align: 'center' });
+        pg2.text('code', x + 14.5, y, 7.2, { bold: true, color: c });
         pg2.text('beads', x + colW - 30, y, 7.2, { bold: true, color: c, align: 'right' });
         pg2.text('bags', x + colW - 12, y, 7.2, { bold: true, color: c, align: 'right' });
         pg2.text('hex', x + colW - 8, y, 7.2, { bold: true, color: c });
@@ -731,11 +731,13 @@
         }
         var pg3 = cursor.page, X = cursor.x, Y = cursor.y;
         pg3.rect(X, Y, 4.4, 4.4, o.p.hex, '#8A939C', 0.12);
-        pg3.text(o.p.symbol, X + 7.6, Y + 3.4, 8, { bold: true });
-        pg3.text(String(o.p.code), X + 13, Y + 3.4, 8);
-        pg3.text(comma(o.c), X + colW - 30, Y + 3.4, 8, { align: 'right' });
-        pg3.text(String(Math.ceil(o.c * 1.1 / perBag)), X + colW - 12, Y + 3.4, 8, { align: 'right' });
-        pg3.text(o.p.hex, X + colW - 8, Y + 3.4, 6, { color: '#9AA3AC' });
+        var mid = Y + 2.2;
+        pg3.glyph(o.p.symbol, X + 9, mid, 8, '#1D2329');
+        pg3.text(String(o.p.code), X + 14.5, mid, 8, { middle: true });
+        pg3.text(comma(o.c), X + colW - 30, mid, 8, { align: 'right', middle: true });
+        pg3.text(String(Math.ceil(o.c * 1.1 / perBag)), X + colW - 12, mid, 8,
+          { align: 'right', middle: true });
+        pg3.text(o.p.hex, X + colW - 8, mid, 6, { middle: true, color: '#9AA3AC' });
         cursor.y += rowH;
       });
 

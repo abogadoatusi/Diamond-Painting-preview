@@ -1,11 +1,11 @@
 /* オフライン用サービスワーカー。
  * 方式は stale-while-revalidate: まずキャッシュを返し、裏で最新を取り直す。
  * 次に開いたときに新しい版が反映される。 */
-var VERSION = 'v1';
+var VERSION = 'v2';
 var CACHE = 'diamond-art-maker-' + VERSION;
 var ASSETS = [
   './', './index.html', './styles.css', './manifest.webmanifest',
-  './js/dmc.js', './js/color.js', './js/quantize.js',
+  './js/dmc.js', './js/color.js', './js/glyph.js', './js/quantize.js',
   './js/render.js', './js/pdf.js', './js/app.js',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'
 ];

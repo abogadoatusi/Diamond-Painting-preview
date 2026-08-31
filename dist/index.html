@@ -764,6 +764,58 @@ var Color = (function () {
   };
 })();
 
+/* 記号を「マスの中心」に正確に置くための、字形ごとの中心オフセット。
+ *
+ * canvas の textAlign='center' は字送り幅の中央、textBaseline='middle' は
+ * フォントの em ボックスの中央を基準にするため、実際に描かれる字形
+ * （インク）の中心とはズレる。大文字は上寄り、g や y は下寄り、* は大きく
+ * 上寄りになる。ここでは字形のバウンディングボックスを実測して、
+ * em 単位の補正値として返す。 */
+var Glyph = (function () {
+  var REF = 100;      // 測定用のフォントサイズ（結果は em 単位なので寸法に依存しない）
+  var cache = {};
+  var ctx = null;
+
+  function context() {
+    if (!ctx) {
+      var cv = document.createElement('canvas');
+      cv.width = cv.height = 8;
+      ctx = cv.getContext('2d');
+    }
+    return ctx;
+  }
+
+  /* 戻り値 {kx, ky}（em単位）。
+     textAlign='left' / textBaseline='alphabetic' として
+       x = cx - kx * fontSize
+       y = cy + ky * fontSize
+     に描くと、字形の中心が (cx, cy) に一致する。 */
+  function center(ch, family) {
+    var key = family + ' ' + ch;
+    if (cache[key]) return cache[key];
+
+    var c = context();
+    c.font = REF + 'px ' + family;
+    c.textAlign = 'left';
+    c.textBaseline = 'alphabetic';
+
+    var m = c.measureText(ch);
+    var L = m.actualBoundingBoxLeft, R = m.actualBoundingBoxRight;
+    var A = m.actualBoundingBoxAscent, D = m.actualBoundingBoxDescent;
+    var k;
+    if (typeof A === 'number' && typeof R === 'number' && (A + D) > 0) {
+      k = { kx: (R - L) / 2 / REF, ky: (A - D) / 2 / REF };
+    } else {
+      /* 実測できない環境向け: 字送り幅の中央と、大文字の高さの半分で代用 */
+      k = { kx: (m.width || REF * 0.5) / 2 / REF, ky: 0.358 };
+    }
+    cache[key] = k;
+    return k;
+  }
+
+  return { center: center };
+})();
+
 /* 画像 -> ビーズ格子 への変換（サンプリング / 減色 / パレット割当） */
 var Quantize = (function () {
 
@@ -1023,6 +1075,8 @@ var Quantize = (function () {
 /* ビーズ格子を canvas に描画する（プレビュー / PNG 書き出し / PDF用サムネイル共通） */
 var Render = (function () {
 
+  var SYMBOL_FONT = '"DejaVu Sans Mono", Menlo, Consolas, monospace';
+
   function drawGrid(ctx, o) {
     var cols = o.cols, rows = o.rows, idx = o.idx, pal = o.palette;
     var cs = o.cell, ox = o.ox || 0, oy = o.oy || 0;
@@ -1054,15 +1108,21 @@ var Render = (function () {
     }
 
     if (showSym) {
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = Math.round(cs * 0.68) + 'px "DejaVu Sans Mono", Menlo, Consolas, monospace';
+      /* 字形の実測値でマスの中心に合わせる（textAlign/Baseline の既定では中心に来ない） */
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      var fontPx = Math.round(cs * 0.68);
+      ctx.font = fontPx + 'px ' + SYMBOL_FONT;
       for (var yy = 0; yy < rows; yy++) {
         for (var xx = 0; xx < cols; xx++) {
           var q = pal[idx[yy * cols + xx]];
           if (!q) continue;
+          var ch = q.symbol || '?';
+          var k = Glyph.center(ch, SYMBOL_FONT);
           ctx.fillStyle = (mode === 'symbol') ? '#222222' : Color.readableInk(q.hex);
-          ctx.fillText(q.symbol || '?', ox + xx * cs + cs / 2, oy + yy * cs + cs * 0.54);
+          ctx.fillText(ch,
+            ox + xx * cs + cs / 2 - k.kx * fontPx,
+            oy + yy * cs + cs / 2 + k.ky * fontPx);
         }
       }
     }
@@ -1144,6 +1204,9 @@ var MiniPDF = (function () {
     return num(c[0] / 255) + ' ' + num(c[1] / 255) + ' ' + num(c[2] / 255);
   }
 
+  /* PDF の標準フォント Helvetica を、同等の指標を持つ画面フォントで実測する */
+  var GLYPH_FONT = 'Helvetica, Arial, "Liberation Sans", sans-serif';
+
   function Page(doc, wmm, hmm) {
     this.doc = doc; this.w = wmm; this.h = hmm; this.ops = []; this.images = [];
   }
@@ -1185,7 +1248,8 @@ var MiniPDF = (function () {
     return this;
   };
 
-  /* y はベースライン位置(mm)。align: left|center|right */
+  /* y はベースライン位置(mm)。align: left|center|right。
+     opt.middle = true なら y を「文字の高さの中心」として扱う。 */
   Page.prototype.text = function (str, x, y, size, opt) {
     opt = opt || {};
     var bold = !!opt.bold;
@@ -1193,14 +1257,16 @@ var MiniPDF = (function () {
     var tx = x;
     if (opt.align === 'center') tx = x - w / 2;
     else if (opt.align === 'right') tx = x - w;
+    if (opt.middle) y += Glyph.center(String(str), GLYPH_FONT).ky * size / MM;
     this.ops.push('BT ' + rgbOf(opt.color || '#000') + ' rg /' + (bold ? 'F2' : 'F1') + ' ' +
       num(size) + ' Tf ' + num(tx * MM) + ' ' + this.Y(y) + ' Td (' + esc(str) + ') Tj ET');
     return this;
   };
 
-  /* 中央そろえで「セル内」に収める記号描画 */
+  /* 字形の中心を (cx, cy) に合わせて記号を描く */
   Page.prototype.glyph = function (ch, cx, cy, size, color) {
-    this.text(ch, cx, cy + size * 0.36 / MM, size, { align: 'center', color: color });
+    var k = Glyph.center(ch, GLYPH_FONT);
+    this.text(ch, cx - k.kx * size / MM, cy + k.ky * size / MM, size, { color: color });
     return this;
   };
 
@@ -1960,8 +2026,8 @@ var MiniPDF = (function () {
             bp.line(gx0, gy0 + ly * cell, gx0 + nc * cell, gy0 + ly * cell,
               mjy ? '#39424C' : '#AEB6BE', mjy ? 0.3 : 0.1);
             if ((r0 + ly) % 5 === 0 && ly < nr) {
-              bp.text(String(r0 + ly + 1), gx0 - 1.2, gy0 + ly * cell + cell / 2 + 1.4, 5,
-                { align: 'right', color: '#6B7580' });
+              bp.text(String(r0 + ly + 1), gx0 - 1.2, gy0 + ly * cell + cell / 2, 5,
+                { align: 'right', middle: true, color: '#6B7580' });
             }
           }
         }
@@ -2014,8 +2080,8 @@ var MiniPDF = (function () {
 
       function header(pg2, x, y) {
         var c = '#6B7580';
-        pg2.text('sym', x + 7.6, y, 7.2, { bold: true, color: c });
-        pg2.text('code', x + 13, y, 7.2, { bold: true, color: c });
+        pg2.text('sym', x + 9, y, 7.2, { bold: true, color: c, align: 'center' });
+        pg2.text('code', x + 14.5, y, 7.2, { bold: true, color: c });
         pg2.text('beads', x + colW - 30, y, 7.2, { bold: true, color: c, align: 'right' });
         pg2.text('bags', x + colW - 12, y, 7.2, { bold: true, color: c, align: 'right' });
         pg2.text('hex', x + colW - 8, y, 7.2, { bold: true, color: c });
@@ -2040,11 +2106,13 @@ var MiniPDF = (function () {
         }
         var pg3 = cursor.page, X = cursor.x, Y = cursor.y;
         pg3.rect(X, Y, 4.4, 4.4, o.p.hex, '#8A939C', 0.12);
-        pg3.text(o.p.symbol, X + 7.6, Y + 3.4, 8, { bold: true });
-        pg3.text(String(o.p.code), X + 13, Y + 3.4, 8);
-        pg3.text(comma(o.c), X + colW - 30, Y + 3.4, 8, { align: 'right' });
-        pg3.text(String(Math.ceil(o.c * 1.1 / perBag)), X + colW - 12, Y + 3.4, 8, { align: 'right' });
-        pg3.text(o.p.hex, X + colW - 8, Y + 3.4, 6, { color: '#9AA3AC' });
+        var mid = Y + 2.2;
+        pg3.glyph(o.p.symbol, X + 9, mid, 8, '#1D2329');
+        pg3.text(String(o.p.code), X + 14.5, mid, 8, { middle: true });
+        pg3.text(comma(o.c), X + colW - 30, mid, 8, { align: 'right', middle: true });
+        pg3.text(String(Math.ceil(o.c * 1.1 / perBag)), X + colW - 12, mid, 8,
+          { align: 'right', middle: true });
+        pg3.text(o.p.hex, X + colW - 8, mid, 6, { middle: true, color: '#9AA3AC' });
         cursor.y += rowH;
       });
 

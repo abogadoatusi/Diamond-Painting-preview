@@ -1,6 +1,8 @@
 /* ビーズ格子を canvas に描画する（プレビュー / PNG 書き出し / PDF用サムネイル共通） */
 var Render = (function () {
 
+  var SYMBOL_FONT = '"DejaVu Sans Mono", Menlo, Consolas, monospace';
+
   function drawGrid(ctx, o) {
     var cols = o.cols, rows = o.rows, idx = o.idx, pal = o.palette;
     var cs = o.cell, ox = o.ox || 0, oy = o.oy || 0;
@@ -32,15 +34,21 @@ var Render = (function () {
     }
 
     if (showSym) {
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = Math.round(cs * 0.68) + 'px "DejaVu Sans Mono", Menlo, Consolas, monospace';
+      /* 字形の実測値でマスの中心に合わせる（textAlign/Baseline の既定では中心に来ない） */
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      var fontPx = Math.round(cs * 0.68);
+      ctx.font = fontPx + 'px ' + SYMBOL_FONT;
       for (var yy = 0; yy < rows; yy++) {
         for (var xx = 0; xx < cols; xx++) {
           var q = pal[idx[yy * cols + xx]];
           if (!q) continue;
+          var ch = q.symbol || '?';
+          var k = Glyph.center(ch, SYMBOL_FONT);
           ctx.fillStyle = (mode === 'symbol') ? '#222222' : Color.readableInk(q.hex);
-          ctx.fillText(q.symbol || '?', ox + xx * cs + cs / 2, oy + yy * cs + cs * 0.54);
+          ctx.fillText(ch,
+            ox + xx * cs + cs / 2 - k.kx * fontPx,
+            oy + yy * cs + cs / 2 + k.ky * fontPx);
         }
       }
     }
